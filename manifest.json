@@ -3,7 +3,7 @@
 	"name": "Guozha AI Pro",
 	"version": "1.2.2",
 	"minAppVersion": "0.15.0",
-	"description": "自由灵活地使用 AI，并借助坚果云 WebDAV 实现免费便捷的云同步。",
+	"description": "Flexible AI chat with free WebDAV cloud sync powered by Nutstore.",
 	"author": "jiahuacaogoodman-art",
 	"authorUrl": "https://github.com/jiahuacaogoodman-art",
 	"isDesktopOnly": false
