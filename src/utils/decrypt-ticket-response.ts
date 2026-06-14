@@ -1,4 +1,4 @@
-import { decryptSecret } from '@nutstore/sso-js'
+import { decryptSecret } from './nutstore-sso'
 
 export interface OAuthResponse {
 	username: string

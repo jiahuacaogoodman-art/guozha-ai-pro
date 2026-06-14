@@ -1,3 +1,252 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:78b42af966d9493385832624db7abf00344899a696fbfe0bad86854a43734256
-size 1913286
+{
+	"openai-compatible": {
+		"id": "openai-compatible",
+		"env": [
+			"OPENAI_API_KEY"
+		],
+		"npm": "@ai-sdk/openai-compatible",
+		"api": "https://api.openai.com/v1",
+		"name": "OpenAI Compatible",
+		"doc": "https://platform.openai.com/docs",
+		"models": {
+			"gpt-4.1": {
+				"id": "gpt-4.1",
+				"name": "GPT-4.1",
+				"family": "gpt-4.1",
+				"attachment": true,
+				"reasoning": false,
+				"tool_call": true,
+				"structured_output": true,
+				"temperature": true,
+				"release_date": "2025-04-14",
+				"last_updated": "2025-04-14",
+				"modalities": {
+					"input": [
+						"text",
+						"image"
+					],
+					"output": [
+						"text"
+					]
+				},
+				"open_weights": false,
+				"limit": {
+					"context": 1047576,
+					"output": 32768
+				}
+			},
+			"gpt-4.1-mini": {
+				"id": "gpt-4.1-mini",
+				"name": "GPT-4.1 mini",
+				"family": "gpt-4.1",
+				"attachment": true,
+				"reasoning": false,
+				"tool_call": true,
+				"structured_output": true,
+				"temperature": true,
+				"release_date": "2025-04-14",
+				"last_updated": "2025-04-14",
+				"modalities": {
+					"input": [
+						"text",
+						"image"
+					],
+					"output": [
+						"text"
+					]
+				},
+				"open_weights": false,
+				"limit": {
+					"context": 1047576,
+					"output": 32768
+				}
+			},
+			"gpt-4o": {
+				"id": "gpt-4o",
+				"name": "GPT-4o",
+				"family": "gpt-4o",
+				"attachment": true,
+				"reasoning": false,
+				"tool_call": true,
+				"structured_output": true,
+				"temperature": true,
+				"release_date": "2024-05-13",
+				"last_updated": "2024-08-06",
+				"modalities": {
+					"input": [
+						"text",
+						"image"
+					],
+					"output": [
+						"text"
+					]
+				},
+				"open_weights": false,
+				"limit": {
+					"context": 128000,
+					"output": 16384
+				}
+			},
+			"gpt-image-1": {
+				"id": "gpt-image-1",
+				"name": "GPT Image 1",
+				"family": "gpt-image",
+				"attachment": true,
+				"reasoning": false,
+				"tool_call": false,
+				"structured_output": false,
+				"temperature": false,
+				"release_date": "2025-04-23",
+				"last_updated": "2025-04-23",
+				"modalities": {
+					"input": [
+						"text",
+						"image"
+					],
+					"output": [
+						"image"
+					]
+				},
+				"open_weights": false,
+				"limit": {
+					"context": 32000,
+					"output": 1
+				}
+			}
+		}
+	},
+	"gemini-compatible": {
+		"id": "gemini-compatible",
+		"env": [
+			"GEMINI_API_KEY"
+		],
+		"npm": "@ai-sdk/openai-compatible",
+		"api": "https://generativelanguage.googleapis.com/v1beta/openai",
+		"name": "Gemini OpenAI Compatible",
+		"doc": "https://ai.google.dev/gemini-api/docs/openai",
+		"models": {
+			"gemini-2.5-pro": {
+				"id": "gemini-2.5-pro",
+				"name": "Gemini 2.5 Pro",
+				"family": "gemini-2.5",
+				"attachment": true,
+				"reasoning": true,
+				"tool_call": true,
+				"structured_output": true,
+				"temperature": true,
+				"release_date": "2025-03-25",
+				"last_updated": "2025-06-17",
+				"modalities": {
+					"input": [
+						"text",
+						"image",
+						"audio",
+						"video",
+						"pdf"
+					],
+					"output": [
+						"text"
+					]
+				},
+				"open_weights": false,
+				"limit": {
+					"context": 1048576,
+					"output": 65536
+				}
+			},
+			"gemini-2.5-flash": {
+				"id": "gemini-2.5-flash",
+				"name": "Gemini 2.5 Flash",
+				"family": "gemini-2.5",
+				"attachment": true,
+				"reasoning": true,
+				"tool_call": true,
+				"structured_output": true,
+				"temperature": true,
+				"release_date": "2025-04-17",
+				"last_updated": "2025-06-17",
+				"modalities": {
+					"input": [
+						"text",
+						"image",
+						"audio",
+						"video",
+						"pdf"
+					],
+					"output": [
+						"text"
+					]
+				},
+				"open_weights": false,
+				"limit": {
+					"context": 1048576,
+					"output": 65536
+				}
+			}
+		}
+	},
+	"anthropic-compatible": {
+		"id": "anthropic-compatible",
+		"env": [
+			"ANTHROPIC_API_KEY"
+		],
+		"npm": "@ai-sdk/openai-compatible",
+		"api": "https://api.anthropic.com/v1",
+		"name": "Anthropic Compatible",
+		"doc": "https://docs.anthropic.com",
+		"models": {
+			"claude-sonnet-4-5": {
+				"id": "claude-sonnet-4-5",
+				"name": "Claude Sonnet 4.5",
+				"family": "claude",
+				"attachment": true,
+				"reasoning": true,
+				"tool_call": true,
+				"structured_output": true,
+				"temperature": true,
+				"release_date": "2025-09-29",
+				"last_updated": "2025-09-29",
+				"modalities": {
+					"input": [
+						"text",
+						"image"
+					],
+					"output": [
+						"text"
+					]
+				},
+				"open_weights": false,
+				"limit": {
+					"context": 200000,
+					"output": 64000
+				}
+			},
+			"claude-opus-4-1": {
+				"id": "claude-opus-4-1",
+				"name": "Claude Opus 4.1",
+				"family": "claude",
+				"attachment": true,
+				"reasoning": true,
+				"tool_call": true,
+				"structured_output": true,
+				"temperature": true,
+				"release_date": "2025-08-05",
+				"last_updated": "2025-08-05",
+				"modalities": {
+					"input": [
+						"text",
+						"image"
+					],
+					"output": [
+						"text"
+					]
+				},
+				"open_weights": false,
+				"limit": {
+					"context": 200000,
+					"output": 32000
+				}
+			}
+		}
+	}
+}

@@ -1,4 +1,3 @@
-import { createOAuthUrl } from '@nutstore/sso-js'
 import { Notice, Setting } from 'obsidian'
 import LogoutConfirmModal from '~/components/LogoutConfirmModal'
 import i18n from '~/i18n'
@@ -8,6 +7,7 @@ import {
 } from '~/utils/decrypt-ticket-response'
 import { is503Error } from '~/utils/is-503-error'
 import logger from '~/utils/logger'
+import { createOAuthUrl } from '~/utils/nutstore-sso'
 import BaseSettings from './settings.base'
 
 export default class AccountSettings extends BaseSettings {
