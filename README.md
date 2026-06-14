@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./assets/guozha-ai-pro-logo.svg" alt="果札：AI pro" width="220" />
+  <img src="./assets/guozha-ai-pro-logo.svg" alt="Guozha AI Pro" width="220" />
 </p>
 
-<h1 align="center">果札：AI pro</h1>
+<h1 align="center">Guozha AI Pro</h1>
 
 <p align="center">
   面向 Obsidian 的 AI 对话、多模态创作、图像生成与 WebDAV 同步插件。
@@ -20,7 +20,7 @@
 
 ## 你可以用它做什么
 
-**果札：AI pro** 把知识库里的同步、对话、文件操作和创作能力放到同一个工作流里。你可以在 Obsidian 里直接和 AI 对话，让它理解图片、生成图片、读取或整理 Vault 文件，也可以继续使用 WebDAV 完成多端同步。
+**Guozha AI Pro（果札）** 把知识库里的同步、对话、文件操作和创作能力放到同一个工作流里。你可以在 Obsidian 里直接和 AI 对话，让它理解图片、生成图片、读取或整理 Vault 文件，也可以继续使用 WebDAV 完成多端同步。
 
 ## 主要功能
 
@@ -54,7 +54,7 @@
 <你的 Vault>/.obsidian/plugins/guozha-ai-pro/
 ```
 
-3. 在 Obsidian 的社区插件设置中启用 **果札：AI pro**。
+3. 在 Obsidian 的社区插件设置中启用 **Guozha AI Pro**。
 4. 在插件设置里配置 WebDAV 同步信息和 AI Provider。
 
 ## 开发
@@ -78,7 +78,7 @@ pnpm build:plugin
 
 ## 隐私与联网
 
-果札：AI pro 只会在你主动配置并使用相关功能时联网：
+Guozha AI Pro 只会在你主动配置并使用相关功能时联网：
 
 - WebDAV 同步会连接你配置的远程同步服务。
 - AI 对话、多模态理解和图像生成会把你发送的文本、图片和必要上下文发送到你配置的 AI Provider。

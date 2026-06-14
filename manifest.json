@@ -1,6 +1,6 @@
 {
 	"id": "guozha-ai-pro",
-	"name": "果札：AI pro",
+	"name": "Guozha AI Pro",
 	"version": "1.2.2",
 	"minAppVersion": "0.15.0",
 	"description": "AI-powered Obsidian chat, multimodal workflows, image generation, and WebDAV sync.",

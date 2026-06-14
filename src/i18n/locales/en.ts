@@ -505,8 +505,8 @@ export default {
 		longAgo: 'long ago',
 	},
 	chatbox: {
-		title: 'Guozha: AI pro',
-		openCommand: 'Open Guozha: AI pro',
+		title: 'Guozha AI Pro',
+		openCommand: 'Open Guozha AI Pro',
 		newChat: 'New chat',
 		sessionDeleted: 'Session deleted',
 		repeatedToolCallsStopped:
