@@ -26,7 +26,6 @@ import type {
 export type AppProps = ChatboxProps
 
 const DESKTOP_RESIZE_MEDIA_QUERY = '(pointer: fine) and (min-width: 1024px)'
-const INPUT_HEIGHT_STORAGE_KEY = 'guozha-ai-pro.chatbox.desktop-input-height'
 const DEFAULT_DESKTOP_INPUT_HEIGHT = 184
 const DESKTOP_INPUT_MIN_HEIGHT = 120
 const DESKTOP_INPUT_ABSOLUTE_MIN_HEIGHT = 72
@@ -98,30 +97,6 @@ function App(props: AppProps) {
 		)
 	}
 
-	function readStoredInputPaneHeight() {
-		try {
-			const raw = window.localStorage.getItem(INPUT_HEIGHT_STORAGE_KEY)
-			if (!raw) {
-				return undefined
-			}
-			const value = Number(raw)
-			return Number.isFinite(value) ? value : undefined
-		} catch {
-			return undefined
-		}
-	}
-
-	function persistInputPaneHeight(height: number) {
-		try {
-			window.localStorage.setItem(
-				INPUT_HEIGHT_STORAGE_KEY,
-				String(Math.round(height)),
-			)
-		} catch {
-			// Ignore storage errors, resize should still work.
-		}
-	}
-
 	function getMaxInputPaneHeight() {
 		const viewportMax = Math.floor(
 			window.innerHeight * DESKTOP_INPUT_MAX_VIEWPORT_RATIO,
@@ -143,12 +118,9 @@ function App(props: AppProps) {
 		return Math.round(Math.min(Math.max(height, minHeight), maxHeight))
 	}
 
-	function applyInputPaneHeight(height: number, persist = false) {
+	function applyInputPaneHeight(height: number) {
 		const next = clampInputPaneHeight(height)
 		setInputPaneHeight(next)
-		if (persist) {
-			persistInputPaneHeight(next)
-		}
 		return next
 	}
 
@@ -156,7 +128,7 @@ function App(props: AppProps) {
 		if (!desktopResizeEnabled()) {
 			return
 		}
-		applyInputPaneHeight(defaultDesktopInputHeight, true)
+		applyInputPaneHeight(defaultDesktopInputHeight)
 	}
 
 	function onInputPaneResizeStart() {
@@ -172,13 +144,6 @@ function App(props: AppProps) {
 			return
 		}
 		applyInputPaneHeight(dragStartHeight + deltaY)
-	}
-
-	function onInputPaneResizeEnd() {
-		const height = inputPaneHeight()
-		if (typeof height === 'number') {
-			persistInputPaneHeight(height)
-		}
 	}
 
 	function scrollMessagesToBottom(behavior: ScrollBehavior = 'smooth') {
@@ -258,8 +223,9 @@ function App(props: AppProps) {
 		defaultDesktopInputHeight =
 			Math.round(inputPaneEl.getBoundingClientRect().height) ||
 			DEFAULT_DESKTOP_INPUT_HEIGHT
-		const storedHeight = readStoredInputPaneHeight()
-		applyInputPaneHeight(storedHeight ?? defaultDesktopInputHeight)
+		if (typeof inputPaneHeight() !== 'number') {
+			applyInputPaneHeight(defaultDesktopInputHeight)
+		}
 	})
 
 	createEffect(() => {
@@ -280,7 +246,7 @@ function App(props: AppProps) {
 			}
 			const clampedHeight = clampInputPaneHeight(height)
 			if (clampedHeight !== height) {
-				applyInputPaneHeight(clampedHeight, true)
+				applyInputPaneHeight(clampedHeight)
 			}
 		}
 		window.addEventListener('resize', onResize)
@@ -359,14 +325,6 @@ function App(props: AppProps) {
 
 	function removeAttachment(id: string) {
 		setAttachments((current) => current.filter((item) => item.id !== id))
-	}
-
-	function onPaste(event: ClipboardEvent) {
-		const files = event.clipboardData?.files
-		if (!files?.length) {
-			return
-		}
-		void addImageFiles(files)
 	}
 
 	function onDrop(event: DragEvent) {
@@ -827,7 +785,6 @@ function App(props: AppProps) {
 							activeDocument={activeDocument()}
 							onResizeStart={onInputPaneResizeStart}
 							onResize={onInputPaneResize}
-							onResizeEnd={onInputPaneResizeEnd}
 							onDblClick={resetInputPaneHeight}
 						/>
 					</Show>
@@ -901,7 +858,6 @@ function App(props: AppProps) {
 							placeholder={t('inputPlaceholder')}
 							value={input()}
 							onInput={(event) => setInput(event.currentTarget.value)}
-							onPaste={onPaste}
 							onCompositionStart={() => setIsComposing(true)}
 							onCompositionEnd={() => setIsComposing(false)}
 							onKeyDown={(event) => {
@@ -909,8 +865,7 @@ function App(props: AppProps) {
 									event.key === 'Enter' &&
 									!event.shiftKey &&
 									!isComposing() &&
-									!event.isComposing &&
-									event.keyCode !== 229
+									!event.isComposing
 								) {
 									event.preventDefault()
 									void submit()

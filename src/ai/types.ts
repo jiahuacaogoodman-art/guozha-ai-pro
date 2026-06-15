@@ -102,11 +102,9 @@ export type AIProviderDefinitions = z.infer<typeof aiProviderDefinitionsSchema>
 export const aiProviderConfigSchema = aiProviderDefinitionSchema.extend({
 	apiKey: z.string(),
 })
-export const aiProviderInputSchema = aiProviderConfigSchema
-	.partial()
-	.extend({
-		models: aiModelInputsSchema.optional(),
-	})
+export const aiProviderInputSchema = aiProviderConfigSchema.partial().extend({
+	models: aiModelInputsSchema.optional(),
+})
 export const aiProviderConfigsSchema = z.record(
 	z.string(),
 	aiProviderConfigSchema,
@@ -150,7 +148,7 @@ export interface ToolExecutionResult {
 export interface AIToolDefinition {
 	name: string
 	description: string
-	inputSchema: z.ZodTypeAny
+	inputSchema: z.ZodType
 	execute: (
 		params: unknown,
 		context: AIToolExecutionContext,

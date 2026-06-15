@@ -2,7 +2,6 @@ import { Show } from 'solid-js'
 import type { ChatTimelineMessageItem, ChatboxProps } from '../types'
 import { t } from '../i18n'
 import { formatTime, formatUsage } from '../utils'
-import { CopyButton } from './CopyButton'
 import { ContentParts } from './ContentParts'
 
 export function MessageCard(props: {
@@ -33,12 +32,6 @@ export function MessageCard(props: {
 		return 'System'
 	}
 
-	const getText = () =>
-		(content() ?? [])
-			.filter((p) => p.type === 'text')
-			.map((p) => (p as { type: 'text'; text: string }).text)
-			.join('\n')
-
 	return (
 		<Show
 			when={props.item.message.message.role !== 'tool'}
@@ -54,9 +47,6 @@ export function MessageCard(props: {
 						</div>
 						<div class="flex items-center gap-1">
 							<span>{formatTime(props.item.message.createdAt)}</span>
-							<span onClick={(e) => e.stopPropagation()}>
-								<CopyButton getText={getText} />
-							</span>
 							<Show when={props.onDeleteMessage}>
 								<span onClick={(e) => e.stopPropagation()}>
 									<button
@@ -129,7 +119,6 @@ export function MessageCard(props: {
 				>
 					<div class="mt-3 flex items-center justify-between gap-2">
 						<div class="flex items-center gap-0.5">
-							<CopyButton getText={getText} />
 							<Show when={props.onDeleteMessage}>
 								<button
 									class="chatbox-icon-button cursor-pointer p-1 size-6 text-[var(--text-muted)] hover:text-[var(--text-error)]"

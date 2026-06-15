@@ -16,7 +16,7 @@ export default class TextAreaModal extends Modal {
 			cls: 'w-full h-50vh',
 			text: this.text,
 		})
-		textarea.disabled = true
+		textarea.readOnly = true
 
 		new Setting(contentEl)
 			.addButton((button) => {
@@ -24,9 +24,9 @@ export default class TextAreaModal extends Modal {
 					.setCta()
 					.setButtonText(i18n.t('textAreaModal.copy'))
 					.onClick(() => {
-						void navigator.clipboard.writeText(this.text).then(() => {
-							new Notice(i18n.t('textAreaModal.copied'))
-						})
+						textarea.focus()
+						textarea.select()
+						new Notice(i18n.t('textAreaModal.copied'))
 					})
 			})
 			.addButton((button) => {

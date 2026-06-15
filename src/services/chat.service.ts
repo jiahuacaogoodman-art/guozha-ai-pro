@@ -76,7 +76,6 @@ const CHAT_EXPORT_PAYLOAD_TYPE = 'guozha-ai-pro.chat-session'
 const CHAT_EXPORT_PAYLOAD_VERSION = 1
 const INTERRUPTED_TASK_CANCEL_REASON = 'interrupted_by_restart'
 const IMPORTED_TASK_CANCEL_REASON = 'imported_session'
-const INTERRUPTED_TASK_FAILURE_STAGE = 'interrupted_by_restart'
 const COMPRESSION_PROMPT = [
 	'Summarize the conversation above for continuation in a fresh context.',
 	'Return a compact but information-dense handoff covering:',
@@ -334,7 +333,7 @@ function createTimestampSlug() {
 
 function safeFilenamePart(value: string) {
 	const normalized = value
-		.replace(/[\\/:*?"<>|\n\r\t#\[\]]+/g, ' ')
+		.replace(/[\\/:*?"<>|\n\r\t#\]]|\[/g, ' ')
 		.replace(/\s+/g, ' ')
 		.trim()
 	return (normalized || 'chat-session').slice(0, 80)
@@ -2647,7 +2646,7 @@ export default class ChatService {
 		if (!target) {
 			return
 		}
-		await this.plugin.app.vault.trash(target, true)
+		await this.plugin.app.fileManager.trashFile(target)
 	}
 
 	private async ensureVaultDirectory(path: string) {

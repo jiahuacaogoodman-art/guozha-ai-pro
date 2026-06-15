@@ -32,7 +32,7 @@ export default class DeleteConfirmModal extends Modal {
 
 		const thead = table.createEl('thead')
 		const headerRow = thead.createEl('tr')
-		const selectHeader = headerRow.createEl('th', {
+		headerRow.createEl('th', {
 			cls: 'guozha-task-list-center',
 			text: i18n.t('deleteConfirm.select'),
 		})

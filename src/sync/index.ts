@@ -276,7 +276,7 @@ export class NutstoreSync {
 							await webdav.stat(parentRemotePath)
 							// Directory exists, mark it and all parents as existing
 							markPathAndParentsAsExisting(parentRemotePath)
-						} catch (e) {
+						} catch {
 							// Directory doesn't exist, create mkdir task
 							// No need to check parent's parent since createDirectory uses recursive: true
 							const mkdirTask = new MkdirRemoteTask({

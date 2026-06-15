@@ -8,7 +8,7 @@ export function toError(error: unknown): Error {
 	return error instanceof Error ? error : new Error(getErrorMessage(error))
 }
 
-export function runAsync(task: () => Promise<unknown> | unknown): void {
+export function runAsync(task: () => unknown): void {
 	void Promise.resolve()
 		.then(task)
 		.catch((error) => logger.error(error))

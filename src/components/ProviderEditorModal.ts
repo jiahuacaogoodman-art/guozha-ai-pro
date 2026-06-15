@@ -121,8 +121,9 @@ export default class ProviderEditorModal extends Modal {
 										new Notice(i18n.t('settings.ai.errors.duplicateModelId'))
 										return false
 									}
-									const { [model.id]: _old, ...rest } = this.draft.models
-									this.draft.models = { ...rest, [savedModel.id]: savedModel }
+									const models = { ...this.draft.models }
+									delete models[model.id]
+									this.draft.models = { ...models, [savedModel.id]: savedModel }
 									this.render()
 									return true
 								},
@@ -187,7 +188,8 @@ export default class ProviderEditorModal extends Modal {
 	}
 
 	private deleteModel(model: AIModelConfig) {
-		const { [model.id]: _deleted, ...models } = this.draft.models
+		const models = { ...this.draft.models }
+		delete models[model.id]
 		this.draft.models = models
 		new Notice(i18n.t('settings.ai.modals.model.deleted'))
 		this.render()

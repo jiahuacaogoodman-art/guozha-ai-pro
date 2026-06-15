@@ -484,9 +484,9 @@ export default {
 		close: '关闭',
 	},
 	textAreaModal: {
-		copy: '复制',
+		copy: '选中文本',
 		close: '关闭',
-		copied: '文本已复制到剪贴板',
+		copied: '文本已选中',
 	},
 	time: {
 		justNow: '刚刚',

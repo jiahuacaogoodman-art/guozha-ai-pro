@@ -493,9 +493,9 @@ export default {
 		close: 'Close',
 	},
 	textAreaModal: {
-		copy: 'Copy',
+		copy: 'Select text',
 		close: 'Close',
-		copied: 'Text copied to clipboard',
+		copied: 'Text selected',
 	},
 	time: {
 		justNow: 'just now',

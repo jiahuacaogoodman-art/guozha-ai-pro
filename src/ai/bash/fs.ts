@@ -518,7 +518,7 @@ export class ObsidianVaultFs implements IFileSystem {
 	}
 
 	private async deleteAbstractFile(target: TAbstractFile) {
-		await this.vault.trash(target, true)
+		await this.app.fileManager.trashFile(target)
 	}
 
 	private recordPath(inputPath: string) {

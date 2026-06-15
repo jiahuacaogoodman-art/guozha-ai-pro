@@ -51,7 +51,7 @@ export default class CacheSaveModal extends Modal {
 								await this.cacheService.saveCache(filename)
 								this.onSuccess?.()
 								this.close()
-							} catch (error) {
+							} catch {
 								// Error is already handled in the service
 							}
 						})

@@ -152,8 +152,8 @@ export default class ProvidersManagerModal extends Modal {
 
 	private async deleteProvider(provider: AIProviderConfig) {
 		try {
-			const { [provider.id]: _deleted, ...providers } =
-				this.plugin.settings.ai.providers
+			const providers = { ...this.plugin.settings.ai.providers }
+			delete providers[provider.id]
 			this.plugin.settings.ai.providers = providers
 			await this.onChanged()
 			new Notice(i18n.t('settings.ai.modals.provider.deleted'))

@@ -59,7 +59,6 @@ export async function updateMtimeInRecord(
 	const records = await syncRecord.getRecords()
 	const startAt = Date.now()
 	let completedCount = 0
-	let successfulTasksCount = 0
 
 	const debouncedSetRecords = debounce(
 		(records: Map<string, SyncRecordModel>) => syncRecord.setRecords(records),
@@ -129,7 +128,6 @@ export async function updateMtimeInRecord(
 					local,
 					base,
 				})
-				successfulTasksCount++
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e))
 				logger.error(

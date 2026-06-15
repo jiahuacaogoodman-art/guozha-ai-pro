@@ -1,4 +1,4 @@
-import { defineConfig, presetIcons, presetUno } from 'unocss'
+import { defineConfig, presetIcons, presetWind3 } from 'unocss'
 
 export default defineConfig({
 	content: {
@@ -30,6 +30,6 @@ export default defineConfig({
 				},
 			},
 		}),
-		presetUno(),
+		presetWind3(),
 	],
 })

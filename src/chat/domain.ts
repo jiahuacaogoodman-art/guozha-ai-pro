@@ -33,7 +33,6 @@ import type {
 	ChatUnknownPart,
 	ChatMessage,
 	ChatMessageRecord,
-	ChatMessageMeta,
 	ChatTaskRecord,
 	ChatTaskBase,
 	QueuedChatTask,

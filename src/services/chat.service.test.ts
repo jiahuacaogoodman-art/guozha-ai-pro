@@ -229,6 +229,20 @@ function createPluginWithVault(
 						return this.delete(file)
 					},
 				},
+				fileManager: {
+					async trashFile(file: any) {
+						const normalized = normalize(file.path)
+						files.delete(normalized)
+						for (const folder of [...folders]) {
+							if (
+								folder === normalized ||
+								folder.startsWith(`${normalized}/`)
+							) {
+								folders.delete(folder)
+							}
+						}
+					},
+				},
 			},
 			manifest: { version: '1.2.15' },
 			settings: createPlugin().settings,
@@ -2060,6 +2074,20 @@ describe('ChatService fragment workflows', () => {
 					},
 					async trash(file: any) {
 						return this.delete(file)
+					},
+				},
+				fileManager: {
+					async trashFile(file: any) {
+						const normalized = normalizeWritePath(file.path)
+						files.delete(normalized)
+						for (const folder of [...folders]) {
+							if (
+								folder === normalized ||
+								folder.startsWith(`${normalized}/`)
+							) {
+								folders.delete(folder)
+							}
+						}
 					},
 				},
 			},
