@@ -1,24 +1,31 @@
-import localforage from 'localforage'
 import type { ChatSession, ChatSessionIndexItem } from '~/chat/domain'
 import { StatModel } from '~/model/stat.model'
 import { SyncRecordModel } from '~/model/sync-record.model'
+import { IndexedDBStorage } from './indexeddb-storage'
 import useStorage from './use-storage'
 
 const DB_NAME = 'Nutstore_Plugin_Cache'
+const STORE_NAMES = [
+	'sync_record',
+	'base_blob_store',
+	'traverse_webdav_cache',
+	'chat_sessions',
+	'chat_meta',
+]
+
+function createStorage<T>(storeName: string) {
+	return new IndexedDBStorage<T>({
+		name: DB_NAME,
+		storeName,
+		storeNames: STORE_NAMES,
+	})
+}
 
 export const syncRecordKV = useStorage<Map<string, SyncRecordModel>>(
-	localforage.createInstance({
-		name: DB_NAME,
-		storeName: 'sync_record',
-	}),
+	createStorage('sync_record'),
 )
 
-export const blobKV = useStorage<Blob>(
-	localforage.createInstance({
-		name: DB_NAME,
-		storeName: 'base_blob_store',
-	}),
-)
+export const blobKV = useStorage<Blob>(createStorage('base_blob_store'))
 
 export interface TraverseWebDAVCache {
 	rootCursor: string
@@ -27,10 +34,7 @@ export interface TraverseWebDAVCache {
 }
 
 export const traverseWebDAVKV = useStorage<TraverseWebDAVCache>(
-	localforage.createInstance({
-		name: DB_NAME,
-		storeName: 'traverse_webdav_cache',
-	}),
+	createStorage('traverse_webdav_cache'),
 )
 
 export interface ChatMetaRecord {
@@ -39,15 +43,9 @@ export interface ChatMetaRecord {
 }
 
 export const chatSessionKV = useStorage<ChatSession>(
-	localforage.createInstance({
-		name: DB_NAME,
-		storeName: 'chat_sessions',
-	}),
+	createStorage('chat_sessions'),
 )
 
 export const chatMetaKV = useStorage<ChatMetaRecord | ChatSessionIndexItem[]>(
-	localforage.createInstance({
-		name: DB_NAME,
-		storeName: 'chat_meta',
-	}),
+	createStorage('chat_meta'),
 )
