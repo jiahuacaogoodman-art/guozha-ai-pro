@@ -4,7 +4,7 @@ import { emitCancelSync } from '../events'
 import i18n from '../i18n'
 import type NutstorePlugin from '../index'
 import { SyncStartMode } from '../sync'
-import { CHATBOX_VIEW_TYPE } from '../views/chatbox.view'
+import { openChatboxLeaf } from '../utils/open-chatbox-leaf'
 import SyncConfirmModal from './SyncConfirmModal'
 
 export class SyncRibbonManager {
@@ -56,20 +56,8 @@ export class SyncRibbonManager {
 		)
 		this.stopRibbonEl.classList.add('hidden')
 
-		this.plugin.addRibbonIcon(
-			'bot',
-			i18n.t('chatbox.openCommand'),
-			async () => {
-				const existingLeaf =
-					this.plugin.app.workspace.getLeavesOfType(CHATBOX_VIEW_TYPE)[0]
-				const leaf =
-					existingLeaf || this.plugin.app.workspace.getRightLeaf(false)
-				if (!leaf) {
-					return
-				}
-				await leaf.setViewState({ type: CHATBOX_VIEW_TYPE, active: true })
-				this.plugin.app.workspace.revealLeaf(leaf)
-			},
+		this.plugin.addRibbonIcon('bot', i18n.t('chatbox.openCommand'), () =>
+			openChatboxLeaf(this.plugin),
 		)
 	}
 
