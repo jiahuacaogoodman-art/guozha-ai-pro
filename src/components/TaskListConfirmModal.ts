@@ -81,7 +81,7 @@ export default class TaskListConfirmModal extends Modal {
 			})
 	}
 
-	async open(): Promise<{ confirm: boolean; tasks: BaseTask[] }> {
+	openAndWait(): Promise<{ confirm: boolean; tasks: BaseTask[] }> {
 		super.open()
 		return new Promise((resolve) => {
 			this.onClose = () => {

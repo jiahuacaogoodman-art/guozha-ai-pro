@@ -121,17 +121,19 @@ export class NutstoreSettingTab extends PluginSettingTab {
 		)
 	}
 
-	async display() {
-		this.warningContainerEl.empty()
-		new Setting(this.warningContainerEl)
-			.setName(i18n.t('settings.backupWarning.name'))
-			.setDesc(i18n.t('settings.backupWarning.desc'))
-		await this.accountSettings.display()
-		this.commonSettings.display()
-		this.filterSettings.display()
-		this.cacheSettings.display()
-		this.aiSettings.display()
-		this.logSettings.display()
+	display() {
+		runAsync(() => {
+			this.warningContainerEl.empty()
+			new Setting(this.warningContainerEl)
+				.setName(i18n.t('settings.backupWarning.name'))
+				.setDesc(i18n.t('settings.backupWarning.desc'))
+			this.accountSettings.display()
+			this.commonSettings.display()
+			this.filterSettings.display()
+			this.cacheSettings.display()
+			this.aiSettings.display()
+			this.logSettings.display()
+		})
 	}
 
 	get isSSO() {

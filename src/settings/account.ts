@@ -14,34 +14,36 @@ import BaseSettings from './settings.base'
 export default class AccountSettings extends BaseSettings {
 	private updateOAuthUrlTimer: number | null = null
 
-	async display() {
-		this.containerEl.empty()
-		this.clearOAuthUrlTimer()
-		new Setting(this.containerEl)
-			.setName(i18n.t('settings.sections.account'))
-			.setHeading()
+	display() {
+		runAsync(async () => {
+			this.containerEl.empty()
+			this.clearOAuthUrlTimer()
+			new Setting(this.containerEl)
+				.setName(i18n.t('settings.sections.account'))
+				.setHeading()
 
-		new Setting(this.containerEl)
-			.setName(i18n.t('settings.loginMode.name'))
-			.addDropdown((dropdown) =>
-				dropdown
-					.addOption('manual', i18n.t('settings.loginMode.manual'))
-					.addOption('sso', i18n.t('settings.loginMode.sso'))
-					.setValue(this.plugin.settings.loginMode)
+			new Setting(this.containerEl)
+				.setName(i18n.t('settings.loginMode.name'))
+				.addDropdown((dropdown) =>
+					dropdown
+						.addOption('manual', i18n.t('settings.loginMode.manual'))
+						.addOption('sso', i18n.t('settings.loginMode.sso'))
+						.setValue(this.plugin.settings.loginMode)
 						.onChange((value: 'manual' | 'sso') => {
 							runAsync(async () => {
 								this.plugin.settings.loginMode = value
 								await this.plugin.saveSettings()
-								await this.display()
+								this.display()
 							})
 						}),
-			)
+				)
 
-		if (this.settings.isSSO) {
-			await this.displaySSOLoginSettings()
-		} else {
-			this.displayManualLoginSettings()
-		}
+			if (this.settings.isSSO) {
+				await this.displaySSOLoginSettings()
+			} else {
+				this.displayManualLoginSettings()
+			}
+		})
 	}
 
 	hide() {
@@ -71,12 +73,12 @@ export default class AccountSettings extends BaseSettings {
 				text
 					.setPlaceholder(i18n.t('settings.account.placeholder'))
 					.setValue(this.plugin.settings.account)
-						.onChange((value) => {
-							runAsync(async () => {
-								this.plugin.settings.account = value
-								await this.plugin.saveSettings()
-							})
-						}),
+					.onChange((value) => {
+						runAsync(async () => {
+							this.plugin.settings.account = value
+							await this.plugin.saveSettings()
+						})
+					}),
 			)
 
 		new Setting(this.containerEl)
@@ -86,12 +88,12 @@ export default class AccountSettings extends BaseSettings {
 				text
 					.setPlaceholder(i18n.t('settings.credential.placeholder'))
 					.setValue(this.plugin.settings.credential)
-						.onChange((value) => {
-							runAsync(async () => {
-								this.plugin.settings.credential = value
-								await this.plugin.saveSettings()
-							})
+					.onChange((value) => {
+						runAsync(async () => {
+							this.plugin.settings.credential = value
+							await this.plugin.saveSettings()
 						})
+					})
 				text.inputEl.type = 'password'
 			})
 
@@ -127,7 +129,7 @@ export default class AccountSettings extends BaseSettings {
 									this.plugin.settings.oauthResponseText = ''
 									await this.plugin.saveSettings()
 									new Notice(i18n.t('settings.ssoStatus.logoutSuccess'))
-									await this.display()
+									this.display()
 								})
 							}).open()
 						})
@@ -177,7 +179,7 @@ export default class AccountSettings extends BaseSettings {
 								logger.error(error)
 								this.clearOAuthUrlTimer()
 								if (isNutstoreSsoUnavailableError(error)) {
-									await this.display()
+									this.display()
 								}
 							}
 						})
@@ -199,7 +201,7 @@ export default class AccountSettings extends BaseSettings {
 							this.plugin.settings.loginMode = 'manual'
 							await this.plugin.saveSettings()
 							new Notice(i18n.t('settings.ssoStatus.switchedToManual'))
-							await this.display()
+							this.display()
 						})
 					})
 			})
@@ -230,7 +232,9 @@ export default class AccountSettings extends BaseSettings {
 									new Notice(i18n.t('settings.checkConnection.success'))
 								} else if (error && is503Error(error)) {
 									buttonEl.classList.add('error')
-									buttonEl.textContent = i18n.t('sync.error.requestsTooFrequent')
+									buttonEl.textContent = i18n.t(
+										'sync.error.requestsTooFrequent',
+									)
 									new Notice(i18n.t('sync.error.requestsTooFrequent'))
 								} else {
 									buttonEl.classList.add('error')

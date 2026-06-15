@@ -20,7 +20,12 @@ import {
 	resolveByIntelligentMerge,
 	resolveByLatestTimestamp,
 } from '../core/merge-utils'
-import { BaseTask, BaseTaskOptions, toTaskError } from './task.interface'
+import {
+	BaseTask,
+	BaseTaskOptions,
+	TaskResult,
+	toTaskError,
+} from './task.interface'
 
 export enum ConflictStrategy {
 	DiffMatchPatch = 'diff-match-patch',
@@ -42,7 +47,7 @@ export default class ConflictResolveTask extends BaseTask {
 		super(options)
 	}
 
-	async exec() {
+	async exec(): Promise<TaskResult> {
 		try {
 			const local =
 				this.options.localStat ??
@@ -70,15 +75,15 @@ export default class ConflictResolveTask extends BaseTask {
 
 			switch (this.options.strategy) {
 				case ConflictStrategy.DiffMatchPatch:
-					return await this.execIntelligentMerge()
+					return this.execIntelligentMerge()
 				case ConflictStrategy.LatestTimeStamp:
-					return await this.execLatestTimeStamp(local, remote)
+					return this.execLatestTimeStamp(local, remote)
 				case ConflictStrategy.Skip:
 					// Skip conflict resolution - keep files as they are
 					// Don't update record to preserve conflict state for next sync
 					return { success: true, skipRecord: true } as const
 				case ConflictStrategy.DiffMatchPatchOrSkip:
-					return await this.execIntelligentMergeOrSkip()
+					return this.execIntelligentMergeOrSkip()
 			}
 		} catch (e) {
 			logger.error(this, e)

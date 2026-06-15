@@ -15,6 +15,7 @@ import { getInterleavedMessageField } from './interleaved-message-field'
 import { getOpenAIChatCompletionURLs } from './providers/openai-base-url'
 import { getProviderResolver } from './providers/registry'
 import { obsidianFetch } from './transport/obsidian-fetch'
+import { toError } from '~/utils/async-helpers'
 import {
 	AIMessage,
 	AIMessageContentPart,
@@ -858,7 +859,7 @@ function createNodeStreamingResponse(
 				return
 			}
 			settled = true
-			reject(error)
+			reject(toError(error))
 		}
 
 		nodeRequest = transport.request(
@@ -910,6 +911,17 @@ function createNodeStreamingResponse(
 	})
 }
 
+function nativeWindowFetch(
+	url: string,
+	init: DirectStreamRequestInit,
+): Promise<Response> {
+	return window.fetch(url, {
+		method: init.method,
+		headers: init.headers,
+		body: init.body,
+	})
+}
+
 async function createDirectStreamingResponse(
 	url: string,
 	init: DirectStreamRequestInit,
@@ -920,16 +932,11 @@ async function createDirectStreamingResponse(
 		return createNodeStreamingResponse(url, init, nodeTransport)
 	}
 
-	const nativeFetch: typeof fetch | undefined =
-		typeof globalThis.fetch === 'function' ? globalThis.fetch : undefined
+	const nativeFetch = window.fetch
 	if (!nativeFetch) {
 		throw new Error('Native streaming transport is unavailable.')
 	}
-	return nativeFetch(url, {
-		method: init.method,
-		headers: init.headers,
-		body: init.body,
-	})
+	return nativeWindowFetch(url, init)
 }
 
 async function* readTextChunks(body: ReadableStream<Uint8Array>) {

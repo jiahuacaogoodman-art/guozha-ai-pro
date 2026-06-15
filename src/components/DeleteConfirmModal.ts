@@ -83,7 +83,7 @@ export default class DeleteConfirmModal extends Modal {
 			})
 	}
 
-	async open(): Promise<{
+	openAndWait(): Promise<{
 		tasksToDelete: RemoveLocalTask[]
 		tasksToReupload: RemoveLocalTask[]
 	}> {
