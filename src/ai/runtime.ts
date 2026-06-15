@@ -489,6 +489,7 @@ function shouldTryDirectTextFirst(
 	const lastMessage = getLastMessage(request.messages)
 	return (
 		!interleavedField &&
+		request.tools.length === 0 &&
 		lastMessage?.role === 'user' &&
 		!hasImageParts(lastMessage)
 	)

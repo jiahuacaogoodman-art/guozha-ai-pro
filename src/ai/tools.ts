@@ -100,12 +100,76 @@ function replaceUniqueOccurrence(
 	} satisfies ReplaceResult
 }
 
+function normalizeVaultToolPath(path: string, toolName: string) {
+	if (path.startsWith('/') && !path.startsWith(`${VAULT_MOUNT_POINT}/`)) {
+		throw new Error(
+			`${toolName} can only access files inside the vault. Use a vault-relative path (e.g. notes/file.md) or an absolute virtual path under ${VAULT_MOUNT_POINT}/ (e.g. ${VAULT_MOUNT_POINT}/notes/file.md).`,
+		)
+	}
+	const strippedPath = path.startsWith(`${VAULT_MOUNT_POINT}/`)
+		? path.slice(VAULT_MOUNT_POINT.length)
+		: path
+	return normalizePath(strippedPath)
+}
+
+async function readVaultTextFile(app: App, path: string) {
+	const target = app.vault.getAbstractFileByPath(path)
+	if (target) {
+		if (!(target instanceof TFile)) {
+			throw new Error(i18n.t('chatbox.errors.notFile', { path }))
+		}
+		return await app.vault.cachedRead(target)
+	}
+
+	const stat = await app.vault.adapter.stat(path)
+	if (!stat) {
+		throw new Error(i18n.t('chatbox.errors.fileNotFound', { path }))
+	}
+	if (stat.type !== 'file') {
+		throw new Error(i18n.t('chatbox.errors.notFile', { path }))
+	}
+	return await app.vault.adapter.read(path)
+}
+
 export function createAITools(
 	app: App,
 	options: CreateAIToolsOptions = {},
 ): AIToolDefinition[] {
 	const { permissionGuard } = options
 	const tools: AIToolDefinition[] = [
+		{
+			name: 'read_file',
+			description:
+				'Read a vault text file and return its contents. The path can be a vault-relative path (e.g. notes/file.md) or an absolute virtual path (e.g. /vault/notes/file.md).',
+			inputSchema: z.object({
+				path: z
+					.string()
+					.trim()
+					.min(
+						1,
+						i18n.t('chatbox.errors.toolFieldRequired', { field: 'path' }),
+					),
+			}),
+			execute: async (params): Promise<ToolExecutionResult> => {
+				const path = params.path
+				const normalizedPath = normalizeVaultToolPath(path, 'read_file')
+
+				await permissionGuard?.({
+					type: 'fs',
+					fs: {
+						kind: 'read',
+						path: `${VAULT_MOUNT_POINT}/${normalizedPath}`,
+					},
+				})
+
+				return {
+					result: {
+						path: normalizedPath,
+						content: await readVaultTextFile(app, normalizedPath),
+					},
+				}
+			},
+		},
 		{
 			name: 'edit_file',
 			description:
@@ -130,15 +194,7 @@ export function createAITools(
 				const path = params.path
 				const oldText = params.oldText
 				const newText = params.newText
-				if (path.startsWith('/') && !path.startsWith(`${VAULT_MOUNT_POINT}/`)) {
-					throw new Error(
-						`edit_file can only access files inside the vault. Use a vault-relative path (e.g. notes/file.md) or an absolute virtual path under ${VAULT_MOUNT_POINT}/ (e.g. ${VAULT_MOUNT_POINT}/notes/file.md).`,
-					)
-				}
-				const strippedPath = path.startsWith(`${VAULT_MOUNT_POINT}/`)
-					? path.slice(VAULT_MOUNT_POINT.length)
-					: path
-				const normalizedPath = normalizePath(strippedPath)
+				const normalizedPath = normalizeVaultToolPath(path, 'edit_file')
 
 				await permissionGuard?.({
 					type: 'fs',
