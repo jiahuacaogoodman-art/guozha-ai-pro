@@ -7,7 +7,7 @@ import { getDirectoryContents } from '~/api/webdav'
 import i18n from '~/i18n'
 import { ExportedStorage } from '~/settings/cache'
 import { traverseWebDAVKV } from '~/storage'
-import { getErrorMessage } from '~/utils/async-helpers'
+import { getErrorMessage, toError } from '~/utils/async-helpers'
 import { fileStatToStatModel } from '~/utils/file-stat-to-stat-model'
 import { getTraversalWebDAVDBKey } from '~/utils/get-db-key'
 import logger from '~/utils/logger'
@@ -51,7 +51,7 @@ export default class CacheServiceV1 {
 
 			const deflatedStorage = deflateSync(encoder.encode(serializedStr), {
 				level: 9,
-			}) as Uint8Array<ArrayBuffer>
+			})
 			const filePath = join(this.remoteCacheDir, filename)
 
 			await webdav.createDirectory(this.remoteCacheDir, { recursive: true })
@@ -64,15 +64,14 @@ export default class CacheServiceV1 {
 			)
 
 			new Notice(i18n.t('settings.cache.saveModal.success'))
-			return Promise.resolve()
 		} catch (error) {
 			logger.error('Error saving cache:', error)
-				new Notice(
-					i18n.t('settings.cache.saveModal.error', {
-						message: getErrorMessage(error),
-					}),
-				)
-			return Promise.reject(error)
+			new Notice(
+				i18n.t('settings.cache.saveModal.error', {
+					message: getErrorMessage(error),
+				}),
+			)
+			throw toError(error)
 		}
 	}
 
@@ -87,7 +86,7 @@ export default class CacheServiceV1 {
 			const fileExists = await webdav.exists(filePath).catch(() => false)
 			if (!fileExists) {
 				new Notice(i18n.t('settings.cache.restoreModal.fileNotFound'))
-				return Promise.reject(new Error('File not found'))
+				throw new Error('File not found')
 			}
 
 			const fileContent = (await webdav.getFileContents(filePath, {
@@ -128,15 +127,14 @@ export default class CacheServiceV1 {
 				)
 			}
 			new Notice(i18n.t('settings.cache.restoreModal.success'))
-			return Promise.resolve()
 		} catch (error) {
 			logger.error('Error restoring cache:', error)
-				new Notice(
-					i18n.t('settings.cache.restoreModal.error', {
-						message: getErrorMessage(error),
-					}),
-				)
-			return Promise.reject(error)
+			new Notice(
+				i18n.t('settings.cache.restoreModal.error', {
+					message: getErrorMessage(error),
+				}),
+			)
+			throw toError(error)
 		}
 	}
 
@@ -151,15 +149,14 @@ export default class CacheServiceV1 {
 			await webdav.deleteFile(filePath)
 
 			new Notice(i18n.t('settings.cache.restoreModal.deleteSuccess'))
-			return Promise.resolve()
 		} catch (error) {
 			logger.error('Error deleting cache file:', error)
-				new Notice(
-					i18n.t('settings.cache.restoreModal.deleteError', {
-						message: getErrorMessage(error),
-					}),
-				)
-			return Promise.reject(error)
+			new Notice(
+				i18n.t('settings.cache.restoreModal.deleteError', {
+					message: getErrorMessage(error),
+				}),
+			)
+			throw toError(error)
 		}
 	}
 

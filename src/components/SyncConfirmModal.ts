@@ -1,6 +1,7 @@
 import { App, Modal, Setting } from 'obsidian'
 import i18n from '../i18n'
 import { useSettings } from '../settings'
+import { ConflictStrategy } from '~/sync/tasks/conflict-resolve.task'
 
 export default class SyncConfirmModal extends Modal {
 	private onConfirm: () => void
@@ -24,7 +25,7 @@ export default class SyncConfirmModal extends Modal {
 		infoDiv.createEl('p', {
 			text: i18n.t('sync.confirmModal.strategy', {
 				strategy: i18n.t(
-					`settings.conflictStrategy.${settings.conflictStrategy === 'diff-match-patch' ? 'diffMatchPatch' : 'latestTimestamp'}`,
+					`settings.conflictStrategy.${settings.conflictStrategy === ConflictStrategy.DiffMatchPatch ? 'diffMatchPatch' : 'latestTimestamp'}`,
 				),
 			}),
 		})

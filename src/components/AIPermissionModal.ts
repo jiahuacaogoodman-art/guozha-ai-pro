@@ -141,7 +141,7 @@ export default class AIPermissionModal extends Modal {
 		}
 	}
 
-	open(): Promise<AIPermissionResult> {
+	openAndWait(): Promise<AIPermissionResult> {
 		return new Promise((resolve) => {
 			this.resolve = resolve
 			super.open()

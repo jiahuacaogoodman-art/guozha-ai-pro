@@ -73,7 +73,7 @@ export function createPermissionGuard(
 			return
 		}
 
-		const result = await new AIPermissionModal(app, request).open()
+		const result = await new AIPermissionModal(app, request).openAndWait()
 
 		if (result === 'deny') {
 			throw new Error(

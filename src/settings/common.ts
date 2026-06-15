@@ -67,9 +67,9 @@ export default class CommonSettings extends BaseSettings {
 					.setPlaceholder(i18n.t('settings.skipLargeFiles.placeholder'))
 					.setValue(currentValue)
 
-					text.inputEl.addEventListener('blur', () => {
-						runAsync(() => this.handleMaxFileSizeBlur(text))
-					})
+				text.inputEl.addEventListener('blur', () => {
+					runAsync(() => this.handleMaxFileSizeBlur(text))
+				})
 			})
 
 		new Setting(this.containerEl)
@@ -106,14 +106,12 @@ export default class CommonSettings extends BaseSettings {
 			.setName(i18n.t('settings.useGitStyle.name'))
 			.setDesc(i18n.t('settings.useGitStyle.desc'))
 			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.useGitStyle)
-					.onChange((value) => {
-						runAsync(async () => {
-							this.plugin.settings.useGitStyle = value
-							await this.plugin.saveSettings()
-						})
-					}),
+				toggle.setValue(this.plugin.settings.useGitStyle).onChange((value) => {
+					runAsync(async () => {
+						this.plugin.settings.useGitStyle = value
+						await this.plugin.saveSettings()
+					})
+				}),
 			)
 
 		new Setting(this.containerEl)
@@ -148,14 +146,12 @@ export default class CommonSettings extends BaseSettings {
 			.setName(i18n.t('settings.realtimeSync.name'))
 			.setDesc(i18n.t('settings.realtimeSync.desc'))
 			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.realtimeSync)
-					.onChange((value) => {
-						runAsync(async () => {
-							this.plugin.settings.realtimeSync = value
-							await this.plugin.saveSettings()
-						})
-					}),
+				toggle.setValue(this.plugin.settings.realtimeSync).onChange((value) => {
+					runAsync(async () => {
+						this.plugin.settings.realtimeSync = value
+						await this.plugin.saveSettings()
+					})
+				}),
 			)
 
 		new Setting(this.containerEl)
@@ -163,49 +159,49 @@ export default class CommonSettings extends BaseSettings {
 			.setDesc(i18n.t('settings.startupSyncDelay.desc'))
 			.addText((text) => {
 				const MAX_SECONDS = 86400 // 1 day
-					text
-						.setPlaceholder(i18n.t('settings.startupSyncDelay.placeholder'))
-						.setValue(this.plugin.settings.startupSyncDelaySeconds.toString())
-						.onChange((value) => {
-							runAsync(async () => {
-								const numValue = parseFloat(value)
-								if (!isNaN(numValue)) {
-									const clampedValue = clamp(numValue, 0, MAX_SECONDS)
-									this.plugin.settings.startupSyncDelaySeconds = clampedValue
-									await this.plugin.saveSettings()
-									if (clampedValue !== numValue) {
-										new Notice(
-											i18n.t('settings.startupSyncDelay.exceedsMax', {
-												max: MAX_SECONDS,
-											}),
-										)
-										text.setValue(clampedValue.toString())
-									}
-								}
-							})
-						})
-					text.inputEl.addEventListener('blur', () => {
+				text
+					.setPlaceholder(i18n.t('settings.startupSyncDelay.placeholder'))
+					.setValue(this.plugin.settings.startupSyncDelaySeconds.toString())
+					.onChange((value) => {
 						runAsync(async () => {
-							const numValue = parseFloat(text.getValue())
-							const finalValue = isNaN(numValue)
-								? 0
-								: clamp(numValue, 0, MAX_SECONDS)
-
-							if (isNaN(numValue)) {
-								new Notice(i18n.t('settings.startupSyncDelay.invalidValue'))
-							} else if (finalValue !== numValue) {
-								new Notice(
-									i18n.t('settings.startupSyncDelay.exceedsMax', {
-										max: MAX_SECONDS,
-									}),
-								)
+							const numValue = parseFloat(value)
+							if (!isNaN(numValue)) {
+								const clampedValue = clamp(numValue, 0, MAX_SECONDS)
+								this.plugin.settings.startupSyncDelaySeconds = clampedValue
+								await this.plugin.saveSettings()
+								if (clampedValue !== numValue) {
+									new Notice(
+										i18n.t('settings.startupSyncDelay.exceedsMax', {
+											max: MAX_SECONDS,
+										}),
+									)
+									text.setValue(clampedValue.toString())
+								}
 							}
-
-							text.setValue(finalValue.toString())
-							this.plugin.settings.startupSyncDelaySeconds = finalValue
-							await this.plugin.saveSettings()
 						})
 					})
+				text.inputEl.addEventListener('blur', () => {
+					runAsync(async () => {
+						const numValue = parseFloat(text.getValue())
+						const finalValue = isNaN(numValue)
+							? 0
+							: clamp(numValue, 0, MAX_SECONDS)
+
+						if (isNaN(numValue)) {
+							new Notice(i18n.t('settings.startupSyncDelay.invalidValue'))
+						} else if (finalValue !== numValue) {
+							new Notice(
+								i18n.t('settings.startupSyncDelay.exceedsMax', {
+									max: MAX_SECONDS,
+								}),
+							)
+						}
+
+						text.setValue(finalValue.toString())
+						this.plugin.settings.startupSyncDelaySeconds = finalValue
+						await this.plugin.saveSettings()
+					})
+				})
 				text.inputEl.type = 'number'
 				text.inputEl.min = '0'
 				text.inputEl.max = MAX_SECONDS.toString()
@@ -216,56 +212,55 @@ export default class CommonSettings extends BaseSettings {
 			.setDesc(i18n.t('settings.autoSyncInterval.desc'))
 			.addText((text) => {
 				const MAX_MINUTES = 1440 // 1 day
-					text
-						.setPlaceholder(i18n.t('settings.autoSyncInterval.placeholder'))
-						.setValue(
-							Math.round(
-								this.plugin.settings.autoSyncIntervalSeconds / 60,
-							).toString(),
-						)
-						.onChange((value) => {
-							runAsync(async () => {
-								const numValue = parseFloat(value)
-								if (!isNaN(numValue)) {
-									const clampedValue = clamp(numValue, 0, MAX_MINUTES)
-									this.plugin.settings.autoSyncIntervalSeconds =
-										clampedValue * 60
-									await this.plugin.saveSettings()
-									await this.plugin.scheduledSyncService.updateInterval()
-									if (clampedValue !== numValue) {
-										new Notice(
-											i18n.t('settings.autoSyncInterval.exceedsMax', {
-												max: MAX_MINUTES,
-											}),
-										)
-										text.setValue(clampedValue.toString())
-									}
-								}
-							})
-						})
-					text.inputEl.addEventListener('blur', () => {
+				text
+					.setPlaceholder(i18n.t('settings.autoSyncInterval.placeholder'))
+					.setValue(
+						Math.round(
+							this.plugin.settings.autoSyncIntervalSeconds / 60,
+						).toString(),
+					)
+					.onChange((value) => {
 						runAsync(async () => {
-							const numValue = parseFloat(text.getValue())
-							const finalValue = isNaN(numValue)
-								? 0
-								: Math.round(clamp(numValue, 0, MAX_MINUTES))
-							text.setValue(finalValue.toString())
-
-							if (isNaN(numValue)) {
-								new Notice(i18n.t('settings.autoSyncInterval.invalidValue'))
-							} else if (finalValue !== numValue) {
-								new Notice(
-									i18n.t('settings.autoSyncInterval.exceedsMax', {
-										max: MAX_MINUTES,
-									}),
-								)
+							const numValue = parseFloat(value)
+							if (!isNaN(numValue)) {
+								const clampedValue = clamp(numValue, 0, MAX_MINUTES)
+								this.plugin.settings.autoSyncIntervalSeconds = clampedValue * 60
+								await this.plugin.saveSettings()
+								await this.plugin.scheduledSyncService.updateInterval()
+								if (clampedValue !== numValue) {
+									new Notice(
+										i18n.t('settings.autoSyncInterval.exceedsMax', {
+											max: MAX_MINUTES,
+										}),
+									)
+									text.setValue(clampedValue.toString())
+								}
 							}
-
-							this.plugin.settings.autoSyncIntervalSeconds = finalValue * 60
-							await this.plugin.saveSettings()
-							await this.plugin.scheduledSyncService.updateInterval()
 						})
 					})
+				text.inputEl.addEventListener('blur', () => {
+					runAsync(async () => {
+						const numValue = parseFloat(text.getValue())
+						const finalValue = isNaN(numValue)
+							? 0
+							: Math.round(clamp(numValue, 0, MAX_MINUTES))
+						text.setValue(finalValue.toString())
+
+						if (isNaN(numValue)) {
+							new Notice(i18n.t('settings.autoSyncInterval.invalidValue'))
+						} else if (finalValue !== numValue) {
+							new Notice(
+								i18n.t('settings.autoSyncInterval.exceedsMax', {
+									max: MAX_MINUTES,
+								}),
+							)
+						}
+
+						this.plugin.settings.autoSyncIntervalSeconds = finalValue * 60
+						await this.plugin.saveSettings()
+						await this.plugin.scheduledSyncService.updateInterval()
+					})
+				})
 				text.inputEl.type = 'number'
 				text.inputEl.min = '0'
 				text.inputEl.max = MAX_MINUTES.toString()
@@ -308,7 +303,7 @@ export default class CommonSettings extends BaseSettings {
 								this.plugin.settings.language = value || undefined
 								await this.plugin.saveSettings()
 								await this.plugin.i18nService.update()
-								await this.settings.display()
+								this.settings.display()
 							}
 						})
 					}),
