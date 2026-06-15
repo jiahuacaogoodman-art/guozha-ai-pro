@@ -4,11 +4,10 @@ import './webdav-patch'
 import './assets/styles/global.css'
 
 import { toBase64 } from 'js-base64'
-import { normalizePath, Notice, ObsidianProtocolData, Plugin } from 'obsidian'
+import { normalizePath, Notice, Plugin } from 'obsidian'
 import { sanitizeDefaultSelections, sanitizeProviders } from './ai/config'
 import { SyncRibbonManager } from './components/SyncRibbonManager'
 import { emitCancelSync } from './events'
-import { emitSsoReceive } from './events/sso-receive'
 import i18n from './i18n'
 import ChatService from './services/chat.service'
 import CommandService from './services/command.service'
@@ -28,7 +27,6 @@ import {
 	SyncMode,
 } from './settings'
 import { ConflictStrategy } from './sync/tasks/conflict-resolve.task'
-import { decryptOAuthResponse } from './utils/decrypt-ticket-response'
 import { GlobMatchOptions } from './utils/glob-match'
 import logger from './utils/logger'
 import { stdRemotePath } from './utils/std-remote-path'
@@ -63,17 +61,6 @@ export default class NutstorePlugin extends Plugin {
 		this.addSettingTab(new NutstoreSettingTab(this.app, this))
 		this.registerView(CHATBOX_VIEW_TYPE, (leaf) => new ChatboxView(leaf, this))
 
-		const handleSsoCallback = async (data: ObsidianProtocolData) => {
-			const token = data.s
-			if (typeof token === 'string') {
-				this.settings.oauthResponseText = token
-				await this.saveSettings()
-				new Notice(i18n.t('settings.login.success'), 5000)
-				emitSsoReceive({ token })
-			}
-		}
-		this.registerObsidianProtocolHandler('guozha-ai-pro/sso', handleSsoCallback)
-		this.registerObsidianProtocolHandler('nutstore-sync/sso', handleSsoCallback)
 		setPluginInstance(this)
 		await this.chatService.handleSettingsChanged()
 
@@ -149,7 +136,17 @@ export default class NutstorePlugin extends Plugin {
 		}
 
 		const loadedSettings = (await this.loadData()) as Partial<NutstoreSettings>
+		let shouldSaveSettings = false
 		this.settings = { ...DEFAULT_SETTINGS, ...loadedSettings }
+		if (this.settings.loginMode !== 'manual') {
+			this.settings.loginMode = 'manual'
+			shouldSaveSettings = true
+			new Notice(i18n.t('settings.ssoStatus.switchedToManual'), 8000)
+		}
+		if (this.settings.oauthResponseText.length > 0) {
+			this.settings.oauthResponseText = ''
+			shouldSaveSettings = true
+		}
 		this.settings.ai ??= { providers: {}, defaultModel: undefined, yolo: false }
 		if (Array.isArray(this.settings.ai.providers)) {
 			this.settings.ai.providers = {}
@@ -177,6 +174,9 @@ export default class NutstorePlugin extends Plugin {
 					this.settings.ai.defaultModel,
 				)
 			: undefined
+		if (shouldSaveSettings) {
+			await this.saveData(this.settings)
+		}
 	}
 
 	async saveSettings() {
@@ -189,18 +189,8 @@ export default class NutstorePlugin extends Plugin {
 		this.ribbonManager.update()
 	}
 
-	async getDecryptedOAuthInfo() {
-		return decryptOAuthResponse(this.settings.oauthResponseText)
-	}
-
 	async getToken() {
-		let token
-		if (this.settings.loginMode === 'sso') {
-			const oauth = await this.getDecryptedOAuthInfo()
-			token = `${oauth.username}:${oauth.access_token}`
-		} else {
-			token = `${this.settings.account}:${this.settings.credential}`
-		}
+		const token = `${this.settings.account}:${this.settings.credential}`
 		return toBase64(token)
 	}
 
@@ -209,21 +199,12 @@ export default class NutstorePlugin extends Plugin {
 	 * @returns true 表示配置完整，false 表示未配置或配置不完整
 	 */
 	isAccountConfigured(): boolean {
-		if (this.settings.loginMode === 'sso') {
-			// SSO 模式：检查是否有 OAuth 响应数据
-			return (
-				!!this.settings.oauthResponseText &&
-				this.settings.oauthResponseText.trim() !== ''
-			)
-		} else {
-			// 手动模式：检查账号和凭证是否都已填写
-			return (
-				!!this.settings.account &&
-				this.settings.account.trim() !== '' &&
-				!!this.settings.credential &&
-				this.settings.credential.trim() !== ''
-			)
-		}
+		return (
+			!!this.settings.account &&
+			this.settings.account.trim() !== '' &&
+			!!this.settings.credential &&
+			this.settings.credential.trim() !== ''
+		)
 	}
 
 	get remoteBaseDir() {

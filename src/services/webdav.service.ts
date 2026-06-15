@@ -8,19 +8,10 @@ export class WebDAVService {
 	constructor(private plugin: NutstorePlugin) {}
 
 	async createWebDAVClient(): Promise<WebDAVClient> {
-		let client: WebDAVClient
-		if (this.plugin.settings.loginMode === 'manual') {
-			client = createClient(NS_DAV_ENDPOINT, {
-				username: this.plugin.settings.account,
-				password: this.plugin.settings.credential,
-			})
-		} else {
-			const oauth = await this.plugin.getDecryptedOAuthInfo()
-			client = createClient(NS_DAV_ENDPOINT, {
-				username: oauth.username,
-				password: oauth.access_token,
-			})
-		}
+		const client = createClient(NS_DAV_ENDPOINT, {
+			username: this.plugin.settings.account,
+			password: this.plugin.settings.credential,
+		})
 		return createRateLimitedWebDAVClient(client)
 	}
 

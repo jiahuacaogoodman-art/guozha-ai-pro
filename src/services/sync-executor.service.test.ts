@@ -76,23 +76,20 @@ describe('SyncExecutorService', () => {
 		expect(startMock).not.toHaveBeenCalled()
 	})
 
-	it('opens settings and returns false when the local build lacks Nutstore SSO', async () => {
+	it('rethrows unexpected sync setup errors', async () => {
+		const error = new Error('Failed to create token')
 		const plugin = {
 			...createPlugin(),
 			getToken: vi.fn(async () => {
-				throw new Error(
-					'This local build does not include Nutstore SSO. Use manual WebDAV login in plugin settings.',
-				)
+				throw error
 			}),
 		}
 		const service = new SyncExecutorService(plugin)
 
 		await expect(
 			service.executeSync({ mode: SyncStartMode.MANUAL_SYNC }),
-		).resolves.toBe(false)
+		).rejects.toThrow(error)
 
 		expect(nutstoreSyncCtor).not.toHaveBeenCalled()
-		expect(plugin.app.setting.open).toHaveBeenCalledTimes(1)
-		expect(plugin.app.setting.openTabById).toHaveBeenCalledWith('guozha-ai-pro')
 	})
 })

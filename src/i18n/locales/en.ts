@@ -41,8 +41,9 @@ export default {
 		},
 		loginMode: {
 			name: 'Login mode',
+			desc: 'The public build signs in with your Nutstore WebDAV account and app password.',
 			manual: 'Manual input',
-			sso: 'Single sign-on',
+			sso: 'Single sign-on (unavailable)',
 		},
 		ssoStatus: {
 			loggedIn: 'Logged in',
@@ -51,11 +52,11 @@ export default {
 			logoutSuccess: 'Logged out successfully',
 			unavailableTitle: 'Single sign-on unavailable',
 			unavailableDesc:
-				'This build does not include the Nutstore single sign-on component. Switch to manual input and use your Nutstore WebDAV account and app password to continue syncing.',
+				'This public build does not include the official Nutstore single sign-on component. Use your Nutstore WebDAV account and app password to continue syncing.',
 			unavailableNotice:
-				'This build does not include the Nutstore single sign-on component. Switch to manual input in settings.',
+				'This public build does not include the official Nutstore single sign-on component. Manual WebDAV login is kept enabled.',
 			switchToManual: 'Switch to manual input',
-			switchedToManual: 'Switched to manual input',
+			switchedToManual: 'Switched to manual WebDAV login',
 		},
 		useGitStyle: {
 			name: 'Use git-style conflict markers',

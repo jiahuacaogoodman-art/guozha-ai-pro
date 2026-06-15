@@ -1,10 +1,2 @@
-import { Subject } from 'rxjs'
-
-interface SsoRxProps {
-	token: string
-}
-
-const ssoReceive = new Subject<SsoRxProps>()
-
-export const onSsoReceive = () => ssoReceive.asObservable()
-export const emitSsoReceive = (props: SsoRxProps) => ssoReceive.next(props)
+// Reserved for older installs that may still import this path.
+export {}

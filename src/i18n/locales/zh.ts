@@ -57,8 +57,9 @@ export default {
 		},
 		loginMode: {
 			name: '登录方式',
+			desc: '公开版使用坚果云 WebDAV 账号和应用密码登录。',
 			manual: '手动输入',
-			sso: '单点登录',
+			sso: '单点登录（不可用）',
 		},
 		ssoStatus: {
 			loggedIn: '已登录',
@@ -67,11 +68,11 @@ export default {
 			logoutSuccess: '已退出登录',
 			unavailableTitle: '单点登录暂不可用',
 			unavailableDesc:
-				'当前构建不包含坚果云单点登录组件。请切换到手动输入，使用坚果云 WebDAV 账号和应用密码继续同步。',
+				'当前公开构建不包含坚果云官方单点登录组件。请使用坚果云 WebDAV 账号和应用密码继续同步。',
 			unavailableNotice:
-				'当前构建不包含坚果云单点登录组件，请在设置中切换到手动输入。',
+				'当前公开构建不包含坚果云官方单点登录组件，已保留手动 WebDAV 登录。',
 			switchToManual: '切换到手动输入',
-			switchedToManual: '已切换到手动输入',
+			switchedToManual: '已自动切换到手动 WebDAV 登录',
 		},
 		logout: {
 			confirmTitle: '确认退出',
