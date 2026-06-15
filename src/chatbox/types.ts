@@ -92,6 +92,7 @@ export interface ChatboxActions {
 	onCompressContext: () => Promise<void>
 	onSwitchSession: (sessionId: string) => void
 	onDeleteSession: (sessionId: string) => Promise<void>
+	onRenameSession?: (sessionId: string, title: string) => Promise<void> | void
 	onExportSession?: () => Promise<void> | void
 	onImportSession?: (file: File) => Promise<void> | void
 	onSelectProvider: (providerId: string) => void

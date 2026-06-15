@@ -43,6 +43,7 @@ function App(props: AppProps) {
 	const [modelPickerOpen, setModelPickerOpen] = createSignal(false)
 	const [sessionPendingDeleteId, setSessionPendingDeleteId] =
 		createSignal<string>()
+	const [historyQuery, setHistoryQuery] = createSignal('')
 	const [pendingDeleteMessage, setPendingDeleteMessage] =
 		createSignal<ChatTimelineMessageItem>()
 	const [pendingRegenerateMessage, setPendingRegenerateMessage] =
@@ -77,6 +78,15 @@ function App(props: AppProps) {
 	const currentMaxTokens = () => props.inferenceParams?.maxTokens ?? 1200
 	const selectedProvider = () =>
 		props.providers.find((provider) => provider.id === props.selectedProviderId)
+	const filteredSessionHistory = () => {
+		const query = historyQuery().trim().toLowerCase()
+		if (!query) {
+			return props.sessionHistory
+		}
+		return props.sessionHistory.filter((session) =>
+			session.title.toLowerCase().includes(query),
+		)
+	}
 	const modelPickerLabel = () => {
 		const provider = selectedProvider()
 		const selectedModel = provider?.models.find(
@@ -431,6 +441,7 @@ function App(props: AppProps) {
 
 	async function importSessionFile(file: File) {
 		await props.onImportSession?.(file)
+		setHistoryQuery('')
 		setHistoryOpen(false)
 	}
 
@@ -723,10 +734,22 @@ function App(props: AppProps) {
 										</button>
 									</div>
 								</div>
+								<div class="mt-3">
+									<input
+										class="w-full rounded-2 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)] px-3 py-2 text-sm text-[var(--text-normal)] outline-none"
+										type="search"
+										value={historyQuery()}
+										placeholder={t('searchSessions')}
+										aria-label={t('searchSessions')}
+										onInput={(event) =>
+											setHistoryQuery(event.currentTarget.value)
+										}
+									/>
+								</div>
 							</div>
 							<div class="max-h-80 overflow-auto p-3 scrollbar-default">
 								<div class="flex flex-col gap-2">
-									<For each={props.sessionHistory}>
+									<For each={filteredSessionHistory()}>
 										{(session) => (
 											<SessionHistoryItem
 												session={session}
@@ -738,6 +761,7 @@ function App(props: AppProps) {
 												onDelete={(sessionId) => {
 													setSessionPendingDeleteId(sessionId)
 												}}
+												onRename={props.onRenameSession}
 											/>
 										)}
 									</For>

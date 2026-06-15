@@ -72,6 +72,7 @@ export interface ChatSession {
 export interface ChatSessionIndexItem {
 	id: string
 	title: string
+	customTitle?: boolean
 	createdAt: number
 	updatedAt: number
 }

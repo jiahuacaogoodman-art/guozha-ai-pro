@@ -594,6 +594,9 @@ export default class ChatService {
 			onDeleteSession: async (sessionId: string) => {
 				await this.deleteSession(sessionId)
 			},
+			onRenameSession: async (sessionId: string, title: string) => {
+				await this.renameSession(sessionId, title)
+			},
 			onExportSession: async () => {
 				await this.exportActiveSession()
 			},
@@ -1230,14 +1233,24 @@ export default class ChatService {
 			? metaRaw
 			: { orderedSessionIds: [] }
 		const index = Array.isArray(indexRaw)
-			? indexRaw.filter(
-					(item): item is ChatSessionIndexItem =>
-						!!item &&
-						typeof item.id === 'string' &&
-						typeof item.title === 'string' &&
-						typeof item.createdAt === 'number' &&
-						typeof item.updatedAt === 'number',
-				)
+			? indexRaw
+					.filter(
+						(item): item is ChatSessionIndexItem =>
+							!!item &&
+							typeof item.id === 'string' &&
+							typeof item.title === 'string' &&
+							typeof item.createdAt === 'number' &&
+							typeof item.updatedAt === 'number',
+					)
+					.map(
+						(item): ChatSessionIndexItem => ({
+							id: item.id,
+							title: item.title,
+							createdAt: item.createdAt,
+							updatedAt: item.updatedAt,
+							...(item.customTitle ? { customTitle: true } : {}),
+						}),
+					)
 			: []
 
 		const indexById = new Map(index.map((item) => [item.id, item]))
@@ -1294,6 +1307,36 @@ export default class ChatService {
 				this.sessionIndex.map((item) => ({ ...item })),
 			),
 		])
+	}
+
+	async renameSession(sessionId: string, title: string) {
+		await this.initialize()
+		const trimmedTitle = title.trim()
+		if (!trimmedTitle) {
+			return
+		}
+		const existingIndex = this.sessionIndex.findIndex(
+			(item) => item.id === sessionId,
+		)
+		if (existingIndex === -1) {
+			return
+		}
+		const session = this.loadedSessions.get(sessionId)
+		const updatedAt = Date.now()
+		if (session) {
+			session.updatedAt = updatedAt
+			await this.persistSession(session)
+		}
+		const nextIndex = this.sessionIndex.slice()
+		nextIndex[existingIndex] = {
+			...nextIndex[existingIndex],
+			title: trimmedTitle,
+			customTitle: true,
+			updatedAt,
+		}
+		this.sessionIndex = nextIndex
+		await this.persistMetaAndIndex()
+		this.notify()
 	}
 
 	private rehydrateSession(session: AISession) {
@@ -1534,9 +1577,12 @@ export default class ChatService {
 		const existingTitle =
 			this.sessionIndex.find((e) => e.id === session.id)?.title ??
 			i18n.t('chatbox.newChat')
+		const existingCustomTitle =
+			this.sessionIndex.find((e) => e.id === session.id)?.customTitle ?? false
 		const item: ChatSessionIndexItem = {
 			id: session.id,
-			title: title ?? existingTitle,
+			title: existingCustomTitle ? existingTitle : (title ?? existingTitle),
+			customTitle: existingCustomTitle || undefined,
 			createdAt: session.createdAt,
 			updatedAt: session.updatedAt,
 		}

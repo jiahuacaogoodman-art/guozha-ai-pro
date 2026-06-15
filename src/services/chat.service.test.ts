@@ -1380,6 +1380,53 @@ describe('ChatService fragment workflows', () => {
 		})
 	})
 
+	it('renames a session and preserves the custom title after new messages', async () => {
+		generateAssistantTurn
+			.mockResolvedValueOnce({
+				message: {
+					role: 'assistant',
+					content: [{ type: 'text', text: 'Initial response' }],
+				},
+				meta: {
+					providerId: 'provider-1',
+					providerName: 'Provider',
+					modelName: 'model-a',
+				},
+			})
+			.mockResolvedValueOnce({
+				message: {
+					role: 'assistant',
+					content: [{ type: 'text', text: 'Follow up response' }],
+				},
+				meta: {
+					providerId: 'provider-1',
+					providerName: 'Provider',
+					modelName: 'model-a',
+				},
+			})
+		const service = new ChatService(createPlugin() as never)
+		await service.ensureSession()
+		await service.sendMessage('Original automatic title')
+		const sessionId = service.getViewProps().activeSessionId!
+
+		await service.renameSession(sessionId, 'Research plan')
+		await service.sendMessage('This should not replace the custom title')
+
+		const props = service.getViewProps()
+		expect(props.title).toBe('Research plan')
+		expect(props.sessionHistory[0]).toMatchObject({
+			id: sessionId,
+			title: 'Research plan',
+			customTitle: true,
+		})
+		const persistedIndex = await storageState.chatMetaKV.get('chat_index')
+		expect(persistedIndex[0]).toMatchObject({
+			id: sessionId,
+			title: 'Research plan',
+			customTitle: true,
+		})
+	})
+
 	it('exports the active session into a vault JSON file', async () => {
 		generateAssistantTurn.mockResolvedValueOnce({
 			message: {
