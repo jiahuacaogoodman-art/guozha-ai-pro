@@ -1,4 +1,5 @@
 import { App, PluginSettingTab, Setting } from 'obsidian'
+import { onSsoReceive } from '~/events/sso-receive'
 import i18n from '~/i18n'
 import type NutstorePlugin from '~/index'
 import { ConflictStrategy } from '~/sync/tasks/conflict-resolve.task'
@@ -74,6 +75,10 @@ export class NutstoreSettingTab extends PluginSettingTab {
 	aiSettings: AISettings
 	warningContainerEl: HTMLElement
 
+	subSso = onSsoReceive().subscribe(() => {
+		runAsync(() => this.display())
+	})
+
 	constructor(app: App, plugin: NutstorePlugin) {
 		super(app, plugin)
 		this.plugin = plugin
@@ -129,6 +134,10 @@ export class NutstoreSettingTab extends PluginSettingTab {
 			this.aiSettings.display()
 			this.logSettings.display()
 		})
+	}
+
+	get isSSO() {
+		return this.plugin.settings.loginMode === 'sso'
 	}
 
 	hide() {

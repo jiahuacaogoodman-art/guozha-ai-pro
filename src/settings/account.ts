@@ -1,36 +1,61 @@
 import { Notice, Setting } from 'obsidian'
+import LogoutConfirmModal from '~/components/LogoutConfirmModal'
 import i18n from '~/i18n'
+import {
+	isNutstoreSsoUnavailableError,
+	OAuthResponse,
+} from '~/utils/decrypt-ticket-response'
 import { runAsync } from '~/utils/async-helpers'
 import { is503Error } from '~/utils/is-503-error'
+import logger from '~/utils/logger'
+import { createOAuthUrl, NUTSTORE_SSO_APP } from '~/utils/nutstore-sso'
 import BaseSettings from './settings.base'
 
 export default class AccountSettings extends BaseSettings {
+	private updateOAuthUrlTimer: number | null = null
+
 	display() {
 		runAsync(async () => {
 			this.containerEl.empty()
+			this.clearOAuthUrlTimer()
 			new Setting(this.containerEl)
 				.setName(i18n.t('settings.sections.account'))
 				.setHeading()
 
 			new Setting(this.containerEl)
 				.setName(i18n.t('settings.loginMode.name'))
-				.setDesc(i18n.t('settings.loginMode.desc'))
 				.addDropdown((dropdown) =>
 					dropdown
 						.addOption('manual', i18n.t('settings.loginMode.manual'))
-						.setValue('manual')
-						.setDisabled(true),
+						.addOption('sso', i18n.t('settings.loginMode.sso'))
+						.setValue(this.plugin.settings.loginMode)
+						.onChange((value: 'manual' | 'sso') => {
+							runAsync(async () => {
+								this.plugin.settings.loginMode = value
+								await this.plugin.saveSettings()
+								this.display()
+							})
+						}),
 				)
 
-			new Setting(this.containerEl)
-				.setName(i18n.t('settings.ssoStatus.unavailableTitle'))
-				.setDesc(i18n.t('settings.ssoStatus.unavailableDesc'))
-
-			this.displayManualLoginSettings()
+			if (this.settings.isSSO) {
+				await this.displaySSOLoginSettings()
+			} else {
+				this.displayManualLoginSettings()
+			}
 		})
 	}
 
-	hide() {}
+	hide() {
+		this.clearOAuthUrlTimer()
+	}
+
+	private clearOAuthUrlTimer() {
+		if (this.updateOAuthUrlTimer !== null) {
+			window.clearInterval(this.updateOAuthUrlTimer)
+			this.updateOAuthUrlTimer = null
+		}
+	}
 
 	private displayManualLoginSettings(): void {
 		const helper = new Setting(this.containerEl)
@@ -73,6 +98,117 @@ export default class AccountSettings extends BaseSettings {
 			})
 
 		this.displayCheckConnection()
+	}
+
+	private async displaySSOLoginSettings() {
+		this.plugin.ensureSsoCallbackHandlers()
+		let isLoggedIn = this.plugin.settings.oauthResponseText.length > 0
+		let oauth: OAuthResponse | undefined
+		if (isLoggedIn) {
+			try {
+				oauth = await this.plugin.getDecryptedOAuthInfo()
+			} catch (e) {
+				logger.error(e)
+				if (isNutstoreSsoUnavailableError(e)) {
+					this.displaySsoUnavailable()
+					return
+				}
+				isLoggedIn = false
+			}
+		}
+		if (isLoggedIn && oauth?.username) {
+			const el = new Setting(this.containerEl)
+				.setName(i18n.t('settings.ssoStatus.loggedIn'))
+				.setDesc(oauth.username)
+				.addButton((button) => {
+					button
+						.setWarning()
+						.setButtonText(i18n.t('settings.ssoStatus.logout'))
+						.onClick(() => {
+							new LogoutConfirmModal(this.app, () => {
+								runAsync(async () => {
+									this.plugin.settings.oauthResponseText = ''
+									await this.plugin.saveSettings()
+									new Notice(i18n.t('settings.ssoStatus.logoutSuccess'))
+									this.display()
+								})
+							}).open()
+						})
+				})
+			el.descEl.classList.add('max-w-full', 'truncate')
+			el.infoEl.classList.add('max-w-full')
+			this.displayCheckConnection()
+		} else {
+			new Setting(this.containerEl).setDesc(
+				i18n.t('settings.ssoStatus.compatibility'),
+			)
+			let oauthUrl = ''
+			try {
+				oauthUrl = await createOAuthUrl({
+					app: NUTSTORE_SSO_APP,
+				})
+			} catch (error) {
+				logger.error(error)
+				if (isNutstoreSsoUnavailableError(error)) {
+					this.displaySsoUnavailable()
+					return
+				}
+				new Notice(i18n.t('settings.login.failure'))
+			}
+			new Setting(this.containerEl)
+				.setName(i18n.t('settings.ssoStatus.notLoggedIn'))
+				.addButton((button) => {
+					button.setButtonText(i18n.t('settings.login.name'))
+					button.setDisabled(oauthUrl.length === 0)
+					const ownerDocument = button.buttonEl.ownerDocument
+					const anchor = ownerDocument.createElement('a')
+					anchor.target = '_blank'
+					button.buttonEl.parentElement?.appendChild(anchor)
+					anchor.appendChild(button.buttonEl)
+					if (oauthUrl.length > 0) {
+						anchor.href = oauthUrl
+					}
+					this.updateOAuthUrlTimer = window.setInterval(() => {
+						runAsync(async () => {
+							const stillInDoc = ownerDocument.contains(anchor)
+							if (!stillInDoc) {
+								this.clearOAuthUrlTimer()
+								return
+							}
+							try {
+								anchor.href = await createOAuthUrl({
+									app: NUTSTORE_SSO_APP,
+								})
+							} catch (error) {
+								logger.error(error)
+								this.clearOAuthUrlTimer()
+								if (isNutstoreSsoUnavailableError(error)) {
+									this.display()
+								}
+							}
+						})
+					}, 60 * 1000)
+				})
+		}
+	}
+
+	private displaySsoUnavailable() {
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ssoStatus.unavailableTitle'))
+			.setDesc(i18n.t('settings.ssoStatus.unavailableDesc'))
+			.addButton((button) => {
+				button
+					.setButtonText(i18n.t('settings.ssoStatus.switchToManual'))
+					.setCta()
+					.onClick(() => {
+						runAsync(async () => {
+							this.plugin.settings.loginMode = 'manual'
+							await this.plugin.saveSettings()
+							new Notice(i18n.t('settings.ssoStatus.switchedToManual'))
+							this.display()
+						})
+					})
+			})
 	}
 
 	private displayCheckConnection() {

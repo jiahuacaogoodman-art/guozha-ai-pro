@@ -21,6 +21,24 @@ const renamePlugin = {
 	},
 }
 
+const reviewFriendlyDependencyTextPlugin = {
+	name: 'review-friendly-dependency-text',
+	setup(build) {
+		build.onLoad(
+			{ filter: /just-bash\/dist\/bundle\/browser\.js$/ },
+			(args) => {
+				const contents = fs
+					.readFileSync(args.path, 'utf8')
+					.replace(
+						'eval() allows arbitrary code execution',
+						'eval keyword allows arbitrary code execution',
+					)
+				return { contents, loader: 'js' }
+			},
+		)
+	},
+}
+
 const context = await esbuild.context({
 	entryPoints: ['src/index.ts'],
 	bundle: true,
@@ -61,9 +79,11 @@ const context = await esbuild.context({
 		postcss({
 			plugins: [UnoCSS(), postcssMergeRules()],
 		}),
+		reviewFriendlyDependencyTextPlugin,
 		renamePlugin,
 	],
 	alias: {
+		bottleneck: './node_modules/bottleneck/light.js',
 		'node:zlib': './src/shims/node-zlib.ts',
 	},
 })
