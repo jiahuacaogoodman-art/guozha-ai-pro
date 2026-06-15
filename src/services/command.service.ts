@@ -4,7 +4,7 @@ import { emitCancelSync } from '~/events'
 import i18n from '~/i18n'
 import { SyncStartMode } from '~/sync'
 import logger from '~/utils/logger'
-import { CHATBOX_VIEW_TYPE } from '~/views/chatbox.view'
+import { openChatboxLeaf } from '~/utils/open-chatbox-leaf'
 import NutstorePlugin from '..'
 
 export default class CommandService {
@@ -54,19 +54,7 @@ export default class CommandService {
 			id: 'open-chatbox',
 			name: i18n.t('chatbox.openCommand'),
 			icon: 'bot',
-			callback: async () => {
-				const existingLeaf =
-					plugin.app.workspace.getLeavesOfType(CHATBOX_VIEW_TYPE)[0]
-				const leaf = existingLeaf || plugin.app.workspace.getRightLeaf(false)
-				if (!leaf) {
-					return
-				}
-				await leaf.setViewState({
-					type: CHATBOX_VIEW_TYPE,
-					active: true,
-				})
-				plugin.app.workspace.revealLeaf(leaf)
-			},
+			callback: () => openChatboxLeaf(plugin),
 		})
 
 		plugin.addCommand({
