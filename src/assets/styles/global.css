@@ -71,14 +71,16 @@
 	border-color: var(--background-modifier-error);
 }
 
-input.error {
-	border-color: var(--background-modifier-error) !important;
-	box-shadow: none !important;
+.setting-item input.error,
+.modal input.error {
+	border-color: var(--background-modifier-error);
+	box-shadow: none;
 }
 
-input.success {
-	border-color: var(--background-modifier-success) !important;
-	box-shadow: none !important;
+.setting-item input.success,
+.modal input.success {
+	border-color: var(--background-modifier-success);
+	box-shadow: none;
 }
 
 .task-list-table {

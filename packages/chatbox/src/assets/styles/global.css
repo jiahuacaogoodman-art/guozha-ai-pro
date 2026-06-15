@@ -81,10 +81,10 @@
 	background: var(--interactive-accent);
 }
 
-.chatbox-resize-active,
-.chatbox-resize-active * {
-	cursor: ns-resize !important;
-	user-select: none !important;
+body.chatbox-resize-active,
+body.chatbox-resize-active * {
+	cursor: ns-resize;
+	user-select: none;
 }
 
 @media (pointer: fine) and (min-width: 1024px) {
