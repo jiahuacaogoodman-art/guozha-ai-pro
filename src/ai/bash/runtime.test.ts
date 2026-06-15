@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { TFile, TFolder, type App, type Vault } from 'obsidian'
 import type { PermissionRequest } from '~/ai/permission-guard'
 import { createVaultBash, execVaultBash, VAULT_MOUNT_POINT } from './runtime'
@@ -167,6 +167,14 @@ class MemoryVaultStore {
 			.filter((key) => !key.slice(prefix.length).includes('/'))
 			.sort()
 	}
+
+	list(path: string) {
+		const children = this.listChildren(path)
+		return {
+			files: children.filter((child) => this.stat(child)?.type === 'file'),
+			folders: children.filter((child) => this.stat(child)?.type === 'folder'),
+		}
+	}
 }
 
 function createMockVault(
@@ -206,6 +214,20 @@ function createMockVault(
 	const vault = {
 		getRoot() {
 			return root()
+		},
+		adapter: {
+			async exists(path: string) {
+				return store.exists(path)
+			},
+			async stat(path: string) {
+				return store.stat(path)
+			},
+			async readBinary(path: string) {
+				return store.readBinary(path)
+			},
+			async list(path: string) {
+				return store.list(path)
+			},
 		},
 		getAbstractFileByPath(path: string) {
 			const normalized = store.normalize(path)
@@ -321,6 +343,51 @@ describe('vault bash runtime', () => {
 		expect(new TextDecoder().decode(store.readBinary('docs/output.txt'))).toBe(
 			'done',
 		)
+	})
+
+	it('reads files through the adapter when the Obsidian index is stale', async () => {
+		const { vault } = createMockVault(
+			{
+				'docs/stale.md': 'from adapter',
+			},
+			['docs'],
+		)
+		const indexedGetAbstractFileByPath = vault.getAbstractFileByPath.bind(vault)
+		vi.spyOn(vault, 'getAbstractFileByPath').mockImplementation((path: string) => {
+			if (path === 'docs/stale.md') {
+				return null
+			}
+			return indexedGetAbstractFileByPath(path)
+		})
+
+		const result = await execVaultBash(
+			createApp(vault),
+			'cat /vault/docs/stale.md',
+		)
+
+		expect(result.exitCode).toBe(0)
+		expect(result.stdout).toBe('from adapter')
+	})
+
+	it('lists adapter files when only the parent folder is indexed', async () => {
+		const { vault } = createMockVault(
+			{
+				'docs/stale.md': 'from adapter',
+			},
+			['docs'],
+		)
+		const indexedGetAbstractFileByPath = vault.getAbstractFileByPath.bind(vault)
+		vi.spyOn(vault, 'getAbstractFileByPath').mockImplementation((path: string) => {
+			if (path === 'docs/stale.md') {
+				return null
+			}
+			return indexedGetAbstractFileByPath(path)
+		})
+
+		const result = await execVaultBash(createApp(vault), 'ls /vault/docs')
+
+		expect(result.exitCode).toBe(0)
+		expect(result.stdout).toContain('stale.md')
 	})
 
 	it('supports shell glob expansion from the initial vault snapshot', async () => {

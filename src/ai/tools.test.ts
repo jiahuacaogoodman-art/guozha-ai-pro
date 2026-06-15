@@ -102,6 +102,31 @@ function createToolApp() {
 			async cachedRead(file: any) {
 				return files.get(normalize(file.path)) ?? ''
 			},
+			adapter: {
+				async stat(path: string) {
+					const normalized = normalize(path)
+					if (files.has(normalized)) {
+						return {
+							type: 'file',
+							ctime: 0,
+							mtime: 0,
+							size: files.get(normalized)?.length ?? 0,
+						}
+					}
+					if (folders.has(normalized)) {
+						return {
+							type: 'folder',
+							ctime: 0,
+							mtime: 0,
+							size: 0,
+						}
+					}
+					return null
+				},
+				async read(path: string) {
+					return files.get(normalize(path)) ?? ''
+				},
+			},
 			async createBinary(path: string, data: ArrayBuffer) {
 				const normalized = normalize(path)
 				ensureFolder(dirname(normalized))
@@ -267,6 +292,25 @@ describe('filterVaultEntries', () => {
 		).resolves.toEqual({
 			result: '/vault\n',
 			reversibleOps: [],
+		})
+	})
+
+	it('reads vault text files with read_file', async () => {
+		const tools = createAITools(createToolApp())
+		const readTool = tools.find((tool) => tool.name === 'read_file')
+
+		const result = await readTool!.execute(
+			{
+				path: '/vault/notes/existing.md',
+			},
+			{} as never,
+		)
+
+		expect(result).toEqual({
+			result: {
+				path: 'notes/existing.md',
+				content: 'old',
+			},
 		})
 	})
 

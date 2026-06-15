@@ -162,6 +162,69 @@ describe('generateAssistantTurn', () => {
 		})
 	})
 
+	it('keeps tool-capable requests on the SDK streaming path', async () => {
+		aiMocks.streamText.mockReturnValueOnce({
+			textStream: (async function* () {
+				yield ''
+			})(),
+			text: Promise.resolve(''),
+			toolCalls: Promise.resolve([
+				{
+					toolCallId: 'call-1',
+					toolName: 'read_file',
+					input: { path: 'note.md' },
+				},
+			]),
+			usage: Promise.resolve({
+				inputTokens: 3,
+				outputTokens: 2,
+				totalTokens: 5,
+			}),
+			response: Promise.resolve({}),
+			files: Promise.resolve([]),
+		})
+
+		const result = await generateAssistantTurn({
+			provider: createProvider(),
+			model: 'model-1',
+			messages: [
+				{
+					role: 'user',
+					content: [{ type: 'text', text: 'Read note.md' }],
+				},
+			],
+			tools: [
+				{
+					name: 'read_file',
+					description: 'Read file',
+					inputSchema: {} as never,
+					execute: vi.fn(),
+				},
+			],
+			onTextDelta: vi.fn(),
+		})
+
+		expect(globalThis.fetch).not.toHaveBeenCalled()
+		expect(aiMocks.streamText).toHaveBeenCalledTimes(1)
+		expect(Object.keys(aiMocks.streamText.mock.calls[0][0].tools)).toEqual([
+			'read_file',
+		])
+		expect(result.message).toEqual({
+			role: 'assistant',
+			content: null,
+			tool_calls: [
+				{
+					id: 'call-1',
+					type: 'function',
+					function: {
+						name: 'read_file',
+						arguments: JSON.stringify({ path: 'note.md' }),
+					},
+				},
+			],
+		})
+	})
+
 	it('uses the Node streaming transport before browser fetch when available', async () => {
 		const responseListeners: Record<
 			string,
