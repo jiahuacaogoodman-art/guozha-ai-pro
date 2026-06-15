@@ -2368,7 +2368,7 @@ export default class ChatService {
 		if (!target) {
 			return
 		}
-		await this.plugin.app.fileManager.trashFile(target)
+		await this.plugin.app.vault.trash(target, true)
 	}
 
 	private async ensureVaultDirectory(path: string) {

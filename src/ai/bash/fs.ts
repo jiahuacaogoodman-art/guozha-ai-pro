@@ -518,7 +518,7 @@ export class ObsidianVaultFs implements IFileSystem {
 	}
 
 	private async deleteAbstractFile(target: TAbstractFile) {
-		await this.app.fileManager.trashFile(target)
+		await this.vault.trash(target, true)
 	}
 
 	private recordPath(inputPath: string) {
@@ -643,7 +643,7 @@ export class ObsidianVaultFs implements IFileSystem {
 		const vaultPath = this.toVaultPath(normalized)
 		return Boolean(
 			this.vault.getAbstractFileByPath(vaultPath) ||
-				(await this.vault.adapter.exists(vaultPath)),
+			(await this.vault.adapter.exists(vaultPath)),
 		)
 	}
 
@@ -707,9 +707,7 @@ export class ObsidianVaultFs implements IFileSystem {
 				? this.vault.getRoot()
 				: this.vault.getAbstractFileByPath(vaultPath)
 		const adapterEntries = await this.readAdapterDirEntries(vaultPath)
-		const merged = new Set<string>(
-			adapterEntries.map((entry) => entry.name),
-		)
+		const merged = new Set<string>(adapterEntries.map((entry) => entry.name))
 		if (target instanceof TFolder) {
 			for (const item of target.children) {
 				if (item.name) {
@@ -756,8 +754,9 @@ export class ObsidianVaultFs implements IFileSystem {
 				})
 			}
 		}
-		const entries = [...entriesByName.values()]
-			.sort((left, right) => left.name.localeCompare(right.name))
+		const entries = [...entriesByName.values()].sort((left, right) =>
+			left.name.localeCompare(right.name),
+		)
 		if (entries.length > 0 || (await this.vault.adapter.exists(vaultPath))) {
 			for (const entry of entries) {
 				this.recordPath(
@@ -840,26 +839,23 @@ export class ObsidianVaultFs implements IFileSystem {
 		await this.assertExists(path)
 	}
 
-	symlink(_target: string, linkPath: string): Promise<void> {
-		return Promise.reject(
-			new Error(
-				`ENOTSUP: symbolic links are not supported in vault fs, link '${linkPath}'`,
-			),
+	async symlink(_target: string, linkPath: string): Promise<void> {
+		await Promise.resolve()
+		throw new Error(
+			`ENOTSUP: symbolic links are not supported in vault fs, link '${linkPath}'`,
 		)
 	}
 
-	link(_existingPath: string, newPath: string): Promise<void> {
-		return Promise.reject(
-			new Error(
-				`ENOTSUP: hard links are not supported in vault fs, link '${newPath}'`,
-			),
+	async link(_existingPath: string, newPath: string): Promise<void> {
+		await Promise.resolve()
+		throw new Error(
+			`ENOTSUP: hard links are not supported in vault fs, link '${newPath}'`,
 		)
 	}
 
-	readlink(path: string): Promise<string> {
-		return Promise.reject(
-			new Error(`EINVAL: not a symbolic link, readlink '${path}'`),
-		)
+	async readlink(path: string): Promise<string> {
+		await Promise.resolve()
+		throw new Error(`EINVAL: not a symbolic link, readlink '${path}'`)
 	}
 
 	async lstat(path: string): Promise<FsStat> {

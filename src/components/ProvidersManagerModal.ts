@@ -7,6 +7,7 @@ import {
 } from '~/ai/config'
 import { AIProviderConfig } from '~/ai/types'
 import i18n from '~/i18n'
+import { runAsync } from '~/utils/async-helpers'
 import logger from '~/utils/logger'
 import type NutstorePlugin from '..'
 import ProviderEditorModal from './ProviderEditorModal'
@@ -132,7 +133,7 @@ export default class ProvidersManagerModal extends Modal {
 						button.buttonEl.removeClass('mod-warning')
 					}
 
-					button.setIcon('trash').onClick(async () => {
+					button.setIcon('trash').onClick(() => {
 						if (!confirmDelete) {
 							confirmDelete = true
 							button.buttonEl.empty()
@@ -142,7 +143,7 @@ export default class ProvidersManagerModal extends Modal {
 							button.buttonEl.addClass('mod-warning')
 							return
 						}
-						await this.deleteProvider(provider)
+						runAsync(() => this.deleteProvider(provider))
 					})
 					button.buttonEl.addEventListener('blur', resetButton)
 				})

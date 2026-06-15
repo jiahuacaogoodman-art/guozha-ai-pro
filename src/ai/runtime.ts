@@ -15,7 +15,7 @@ import { getInterleavedMessageField } from './interleaved-message-field'
 import { getOpenAIChatCompletionURLs } from './providers/openai-base-url'
 import { getProviderResolver } from './providers/registry'
 import { obsidianFetch } from './transport/obsidian-fetch'
-import { toError } from '~/utils/async-helpers'
+import { getErrorMessage } from '~/utils/async-helpers'
 import {
 	AIMessage,
 	AIMessageContentPart,
@@ -859,7 +859,7 @@ function createNodeStreamingResponse(
 				return
 			}
 			settled = true
-			reject(toError(error))
+			reject(error instanceof Error ? error : new Error(getErrorMessage(error)))
 		}
 
 		nodeRequest = transport.request(

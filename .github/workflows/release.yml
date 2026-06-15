@@ -56,7 +56,7 @@ jobs:
           Guozha AI Pro ${tag}
 
           - Refreshes the community review release with verified build assets.
-          - Requires Obsidian 1.4.0 or newer to match the plugin API usage.
+          - Requires Obsidian 1.7.2 or newer to match the plugin API usage.
           EOF
           )
 

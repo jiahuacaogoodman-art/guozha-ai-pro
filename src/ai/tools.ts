@@ -11,6 +11,18 @@ interface ReplaceResult {
 	matchCount: number
 }
 
+type VaultTextFile =
+	| {
+			source: 'indexed'
+			file: TFile
+			content: string
+	  }
+	| {
+			source: 'adapter'
+			path: string
+			content: string
+	  }
+
 function encodeTextBase64(content: string) {
 	if (typeof Buffer !== 'undefined') {
 		return Buffer.from(content).toString('base64')
@@ -145,13 +157,20 @@ function normalizeVaultToolPath(path: string, toolName: string) {
 	return normalizePath(strippedPath)
 }
 
-async function readVaultTextFile(app: App, path: string) {
+async function loadVaultTextFile(
+	app: App,
+	path: string,
+): Promise<VaultTextFile> {
 	const target = app.vault.getAbstractFileByPath(path)
 	if (target) {
 		if (!(target instanceof TFile)) {
 			throw new Error(i18n.t('chatbox.errors.notFile', { path }))
 		}
-		return await app.vault.cachedRead(target)
+		return {
+			source: 'indexed',
+			file: target,
+			content: await app.vault.cachedRead(target),
+		}
 	}
 
 	const stat = await app.vault.adapter.stat(path)
@@ -161,7 +180,27 @@ async function readVaultTextFile(app: App, path: string) {
 	if (stat.type !== 'file') {
 		throw new Error(i18n.t('chatbox.errors.notFile', { path }))
 	}
-	return await app.vault.adapter.read(path)
+	return {
+		source: 'adapter',
+		path,
+		content: await app.vault.adapter.read(path),
+	}
+}
+
+async function readVaultTextFile(app: App, path: string) {
+	return (await loadVaultTextFile(app, path)).content
+}
+
+async function writeVaultTextFile(
+	app: App,
+	target: VaultTextFile,
+	content: string,
+) {
+	if (target.source === 'indexed') {
+		await app.vault.modify(target.file, content)
+		return
+	}
+	await app.vault.adapter.write(target.path, content)
 }
 
 export function createAITools(
@@ -212,18 +251,10 @@ export function createAITools(
 					},
 				})
 
-				const target = app.vault.getAbstractFileByPath(normalizedPath)
-
-				if (!target) {
-					throw new Error(i18n.t('chatbox.errors.fileNotFound', { path }))
-				}
-				if (!(target instanceof TFile)) {
-					throw new Error(i18n.t('chatbox.errors.notFile', { path }))
-				}
-
-				const content = await app.vault.cachedRead(target)
+				const target = await loadVaultTextFile(app, normalizedPath)
+				const content = target.content
 				const replaced = replaceUniqueOccurrence(content, oldText, newText)
-				await app.vault.modify(target, replaced.content)
+				await writeVaultTextFile(app, target, replaced.content)
 
 				return {
 					result: {

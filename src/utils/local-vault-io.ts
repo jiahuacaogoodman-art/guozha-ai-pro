@@ -101,5 +101,5 @@ export async function removeLocalPath(
 	if (!file) {
 		return
 	}
-	await app.fileManager.trashFile(file)
+	await vault.trash(file, true)
 }

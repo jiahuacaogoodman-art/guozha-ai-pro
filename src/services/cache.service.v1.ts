@@ -2,17 +2,58 @@ import { deflateSync, inflateSync } from 'fflate/browser'
 import { Notice } from 'obsidian'
 import { join } from 'path-browserify'
 import superjson from 'superjson'
-import { BufferLike } from 'webdav'
 import { getDirectoryContents } from '~/api/webdav'
 import i18n from '~/i18n'
 import { ExportedStorage } from '~/settings/cache'
-import { traverseWebDAVKV } from '~/storage'
-import { getErrorMessage, toError } from '~/utils/async-helpers'
+import { TraverseWebDAVCache, traverseWebDAVKV } from '~/storage'
+import { getErrorMessage } from '~/utils/async-helpers'
 import { fileStatToStatModel } from '~/utils/file-stat-to-stat-model'
 import { getTraversalWebDAVDBKey } from '~/utils/get-db-key'
 import logger from '~/utils/logger'
 import { uint8ArrayToArrayBuffer } from '~/utils/uint8array-to-arraybuffer'
 import type NutstorePlugin from '..'
+
+function toCacheError(error: unknown): Error {
+	return error instanceof Error ? error : new Error(getErrorMessage(error))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null
+}
+
+function isBinaryContent(value: unknown): value is ArrayBuffer | Uint8Array {
+	return value instanceof ArrayBuffer || value instanceof Uint8Array
+}
+
+function isTraverseWebDAVCache(value: unknown): value is TraverseWebDAVCache {
+	return (
+		isRecord(value) &&
+		typeof value.rootCursor === 'string' &&
+		Array.isArray(value.queue) &&
+		value.queue.every((item) => typeof item === 'string') &&
+		isRecord(value.nodes)
+	)
+}
+
+function binaryContentToArrayBuffer(value: ArrayBuffer | Uint8Array) {
+	if (value instanceof ArrayBuffer) {
+		return value
+	}
+	return uint8ArrayToArrayBuffer(value)
+}
+
+function parseExportedStorage(value: string): ExportedStorage {
+	const parsed = superjson.parse<unknown>(value)
+	if (!isRecord(parsed) || typeof parsed.exportedAt !== 'string') {
+		throw new Error('Invalid cache file format')
+	}
+	return {
+		exportedAt: parsed.exportedAt,
+		traverseWebDAVCache: isTraverseWebDAVCache(parsed.traverseWebDAVCache)
+			? parsed.traverseWebDAVCache
+			: undefined,
+	}
+}
 
 /**
  * Service for handling cache operations (save, restore, delete, list)
@@ -71,7 +112,7 @@ export default class CacheServiceV1 {
 					message: getErrorMessage(error),
 				}),
 			)
-			throw toError(error)
+			throw toCacheError(error)
 		}
 	}
 
@@ -89,17 +130,19 @@ export default class CacheServiceV1 {
 				throw new Error('File not found')
 			}
 
-			const fileContent = (await webdav.getFileContents(filePath, {
+			const fileContent = await webdav.getFileContents(filePath, {
 				format: 'binary',
-			})) as BufferLike
+			})
 
 			// Check if file content is empty
-			if (!fileContent || fileContent.byteLength === 0) {
+			if (!isBinaryContent(fileContent) || fileContent.byteLength === 0) {
 				throw new Error('Cache file is empty')
 			}
 
 			// Decoding pipeline: inflate -> superjson.parse
-			const inflatedFileContent = inflateSync(new Uint8Array(fileContent))
+			const inflatedFileContent = inflateSync(
+				new Uint8Array(binaryContentToArrayBuffer(fileContent)),
+			)
 			if (!inflatedFileContent || inflatedFileContent.length === 0) {
 				throw new Error('Inflate failed or resulted in empty content')
 			}
@@ -110,12 +153,7 @@ export default class CacheServiceV1 {
 				throw new Error('Cache file content is invalid or empty')
 			}
 
-			const exportedStorage: ExportedStorage = superjson.parse(decodedContent)
-
-			// Validate the structure of exported storage
-			if (!exportedStorage) {
-				throw new Error('Invalid cache file format')
-			}
+			const exportedStorage = parseExportedStorage(decodedContent)
 			const { traverseWebDAVCache } = exportedStorage
 			if (traverseWebDAVCache) {
 				await traverseWebDAVKV.set(
@@ -134,7 +172,7 @@ export default class CacheServiceV1 {
 					message: getErrorMessage(error),
 				}),
 			)
-			throw toError(error)
+			throw toCacheError(error)
 		}
 	}
 
@@ -156,7 +194,7 @@ export default class CacheServiceV1 {
 					message: getErrorMessage(error),
 				}),
 			)
-			throw toError(error)
+			throw toCacheError(error)
 		}
 	}
 
@@ -180,7 +218,7 @@ export default class CacheServiceV1 {
 			return files.map(fileStatToStatModel)
 		} catch (error) {
 			logger.error('Error loading cache file list:', error)
-			throw error
+			throw toCacheError(error)
 		}
 	}
 }

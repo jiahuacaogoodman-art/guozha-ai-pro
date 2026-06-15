@@ -1,6 +1,7 @@
 import { Modal, Setting, moment } from 'obsidian'
 import i18n from '~/i18n'
 import CacheService from '~/services/cache.service.v1'
+import { runAsync } from '~/utils/async-helpers'
 import NutstorePlugin from '..'
 
 export default class CacheSaveModal extends Modal {
@@ -40,18 +41,20 @@ export default class CacheSaveModal extends Modal {
 				button
 					.setButtonText(i18n.t('settings.cache.saveModal.save'))
 					.setCta()
-					.onClick(async () => {
-						try {
-							let filename = filenameInput.value
-							if (!filename.endsWith('.v1')) {
-								filename += '.v1'
+					.onClick(() => {
+						runAsync(async () => {
+							try {
+								let filename = filenameInput.value
+								if (!filename.endsWith('.v1')) {
+									filename += '.v1'
+								}
+								await this.cacheService.saveCache(filename)
+								this.onSuccess?.()
+								this.close()
+							} catch (error) {
+								// Error is already handled in the service
 							}
-							await this.cacheService.saveCache(filename)
-							this.onSuccess?.()
-							this.close()
-						} catch (error) {
-							// Error is already handled in the service
-						}
+						})
 					})
 			})
 			.addButton((button) => {

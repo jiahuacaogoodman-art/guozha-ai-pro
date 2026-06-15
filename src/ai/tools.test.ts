@@ -10,9 +10,13 @@ function makeEntries(
 	return paths
 }
 
-function createToolApp() {
-	const files = new Map<string, string>([['notes/existing.md', 'old']])
+function createToolApp(options: { staleIndexPaths?: string[] } = {}) {
+	const files = new Map<string, string>([
+		['notes/existing.md', 'old'],
+		['notes/stale.md', 'stale old'],
+	])
 	const folders = new Set<string>(['', 'notes'])
+	const staleIndexPaths = new Set(options.staleIndexPaths ?? [])
 	const normalize = (path: string) => path.replace(/^\/+|\/+$/g, '')
 	const dirname = (path: string) =>
 		!path || !path.includes('/') ? '' : path.slice(0, path.lastIndexOf('/'))
@@ -69,6 +73,9 @@ function createToolApp() {
 	}
 	const getAbstractFileByPath = (path: string): any => {
 		const normalized = normalize(path)
+		if (staleIndexPaths.has(normalized)) {
+			return null
+		}
 		if (!normalized) {
 			return buildFolder('', null)
 		}
@@ -125,6 +132,11 @@ function createToolApp() {
 				},
 				async read(path: string) {
 					return files.get(normalize(path)) ?? ''
+				},
+				async write(path: string, content: string) {
+					const normalized = normalize(path)
+					ensureFolder(dirname(normalized))
+					files.set(normalized, content)
 				},
 			},
 			async createBinary(path: string, data: ArrayBuffer) {
@@ -343,6 +355,40 @@ describe('filterVaultEntries', () => {
 					},
 				},
 			],
+		})
+	})
+
+	it('edits files through the adapter when the Obsidian index is stale', async () => {
+		const tools = createAITools(
+			createToolApp({ staleIndexPaths: ['notes/stale.md'] }),
+		)
+		const editTool = tools.find((tool) => tool.name === 'edit_file')
+		const readTool = tools.find((tool) => tool.name === 'read_file')
+
+		await expect(
+			editTool!.execute(
+				{
+					path: 'notes/stale.md',
+					oldText: 'stale old',
+					newText: 'stale new',
+				},
+				{} as never,
+			),
+		).resolves.toMatchObject({
+			result: {
+				path: 'notes/stale.md',
+				replaced: true,
+				matchCount: 1,
+			},
+		})
+
+		await expect(
+			readTool!.execute({ path: 'notes/stale.md' }, {} as never),
+		).resolves.toEqual({
+			result: {
+				path: 'notes/stale.md',
+				content: 'stale new',
+			},
 		})
 	})
 })

@@ -20,7 +20,7 @@ export default class CacheRestoreModal extends Modal {
 		this.cacheService = new CacheService(plugin, remoteCacheDir)
 	}
 
-	async onOpen() {
+	onOpen() {
 		const { contentEl } = this
 
 		new Setting(contentEl)
@@ -31,14 +31,14 @@ export default class CacheRestoreModal extends Modal {
 			cls: 'max-h-50vh overflow-y-auto pb-2 flex flex-col',
 		})
 
-		await this.loadFileList()
+		runAsync(() => this.loadFileList())
 
 		new Setting(contentEl)
 			.addButton((button) => {
 				button
 					.setButtonText(i18n.t('settings.cache.restoreModal.refresh'))
-					.onClick(async () => {
-						await this.loadFileList()
+					.onClick(() => {
+						runAsync(() => this.loadFileList())
 					})
 			})
 			.addButton((button) => {

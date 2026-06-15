@@ -2,6 +2,7 @@ import { Modal, Notice, Setting, setIcon } from 'obsidian'
 import { createModelConfig, listModels, slugifyProviderId } from '~/ai/config'
 import { AIModelConfig, AIProviderConfig } from '~/ai/types'
 import i18n from '~/i18n'
+import { runAsync } from '~/utils/async-helpers'
 import logger from '~/utils/logger'
 import { cloneDeep } from '~/utils/std'
 import type NutstorePlugin from '..'
@@ -112,12 +113,12 @@ export default class ProviderEditorModal extends Modal {
 						.setButtonText(i18n.t('settings.ai.modals.model.edit'))
 						.onClick(() => {
 							new ModelEditorModal(
-							this.plugin,
-							model,
-							(savedModel) => {
-								const isRename = savedModel.id !== model.id
-								if (isRename && this.draft.models[savedModel.id]) {
-									new Notice(i18n.t('settings.ai.errors.duplicateModelId'))
+								this.plugin,
+								model,
+								(savedModel) => {
+									const isRename = savedModel.id !== model.id
+									if (isRename && this.draft.models[savedModel.id]) {
+										new Notice(i18n.t('settings.ai.errors.duplicateModelId'))
 										return false
 									}
 									const { [model.id]: _old, ...rest } = this.draft.models
@@ -160,20 +161,22 @@ export default class ProviderEditorModal extends Modal {
 				button
 					.setButtonText(i18n.t('settings.filters.save'))
 					.setCta()
-					.onClick(async () => {
-						try {
-							const toSave = cloneDeep(this.draft)
-							if (this.isNew) {
-								toSave.id = slugifyProviderId(toSave.name)
+					.onClick(() => {
+						runAsync(async () => {
+							try {
+								const toSave = cloneDeep(this.draft)
+								if (this.isNew) {
+									toSave.id = slugifyProviderId(toSave.name)
+								}
+								const ok = await this.onSave(toSave)
+								if (!ok) return
+								new Notice(i18n.t('settings.ai.modals.provider.saved'))
+								this.close()
+							} catch (error) {
+								logger.error(error)
+								new Notice(i18n.t('settings.ai.errors.saveFailed'))
 							}
-							const ok = await this.onSave(toSave)
-							if (!ok) return
-							new Notice(i18n.t('settings.ai.modals.provider.saved'))
-							this.close()
-						} catch (error) {
-							logger.error(error)
-							new Notice(i18n.t('settings.ai.errors.saveFailed'))
-						}
+						})
 					}),
 			)
 			.addButton((button) =>
