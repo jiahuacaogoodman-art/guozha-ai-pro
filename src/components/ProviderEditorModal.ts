@@ -1,9 +1,9 @@
-import { cloneDeep } from 'lodash-es'
 import { Modal, Notice, Setting, setIcon } from 'obsidian'
 import { createModelConfig, listModels, slugifyProviderId } from '~/ai/config'
 import { AIModelConfig, AIProviderConfig } from '~/ai/types'
 import i18n from '~/i18n'
 import logger from '~/utils/logger'
+import { cloneDeep } from '~/utils/std'
 import type NutstorePlugin from '..'
 import ModelEditorModal from './ModelEditorModal'
 

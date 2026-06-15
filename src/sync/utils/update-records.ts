@@ -1,7 +1,7 @@
-import { chunk, debounce, isNil } from 'lodash-es'
 import { Vault } from 'obsidian'
 import { emitSyncUpdateMtimeProgress } from '~/events'
 import { NutstoreFileSystem } from '~/fs/nutstore'
+import type { SyncRecordModel } from '~/model/sync-record.model'
 import { syncRecordKV } from '~/storage'
 import { blobStore } from '~/storage/blob'
 import { SyncRecord } from '~/storage/sync-record'
@@ -13,6 +13,7 @@ import { isSub } from '~/utils/is-sub'
 import { readLocalBinary } from '~/utils/local-vault-io'
 import logger from '~/utils/logger'
 import { statVaultItem } from '~/utils/stat-vault-item'
+import { chunk, debounce, isNil } from '~/utils/std'
 import { stdRemotePath } from '~/utils/std-remote-path'
 import type NutstorePlugin from '../..'
 import RemoveRemoteRecursivelyTask from '../tasks/remove-remote-recursively.task'
@@ -61,7 +62,7 @@ export async function updateMtimeInRecord(
 	let successfulTasksCount = 0
 
 	const debouncedSetRecords = debounce(
-		(records) => syncRecord.setRecords(records),
+		(records: Map<string, SyncRecordModel>) => syncRecord.setRecords(records),
 		3000,
 		{
 			trailing: true,

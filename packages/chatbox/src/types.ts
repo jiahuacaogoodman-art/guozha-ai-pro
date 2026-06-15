@@ -247,7 +247,7 @@ export interface ChatSendPayload {
 	attachments?: ChatImageAttachment[]
 }
 
-export interface ChatboxProps extends ChatboxViewModel {
+export interface ChatboxActions {
 	onNewSession: () => void
 	onNewFragment: () => void
 	onCompressContext: () => Promise<void>
@@ -265,6 +265,12 @@ export interface ChatboxProps extends ChatboxViewModel {
 		messageId: string,
 		options?: { restoreFiles?: boolean },
 	) => Promise<void> | void
+}
+
+export type ChatboxViewProps = ChatboxViewModel & ChatboxActions
+
+export interface ChatboxProps extends ChatboxViewProps {
+	activeDocument: Document
 	renderMarkdown?: (
 		el: HTMLElement,
 		markdown: string,

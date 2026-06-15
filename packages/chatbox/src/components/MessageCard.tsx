@@ -165,7 +165,9 @@ export function MessageCard(props: {
 									class="cursor-pointer p-1 size-6 text-[var(--text-muted)] hover:text-[var(--text-normal)] !border-none !bg-transparent !shadow-none"
 									type="button"
 									title={t('recallMessage')}
-									onClick={() => props.onRecallMessage?.(props.item.message.id)}
+									onClick={() => {
+										void props.onRecallMessage?.(props.item.message.id)
+									}}
 								>
 									<svg
 										width="14"

@@ -1,23 +1,5 @@
-import {
-	isArray,
-	isBoolean,
-	isDate,
-	isError,
-	isFinite,
-	isFunction,
-	isNull,
-	isNumber,
-	isRegExp,
-	isString,
-	isSymbol,
-	isUndefined,
-	map,
-} from 'lodash-es'
-// No need to import Set, use built-in TS Set type
-
 /**
  * Deeply stringifies a JavaScript value into a JSON string, similar to JSON.stringify,
- * leveraging lodash-es functions and written in TypeScript.
  * - Handles circular references by throwing an error.
  * - Handles getter errors by stringifying the error message as the property's value.
  * - Uses native JSON.stringify for robust string escaping.
@@ -32,38 +14,42 @@ export default function deepStringify(
 	visited: Set<object> = new Set(),
 ): string | undefined {
 	// 1. Handle primitives, null, and unsupported types first
-	if (isNull(value)) {
+	if (value === null) {
 		return 'null'
 	}
-	if (isBoolean(value)) {
+	if (typeof value === 'boolean') {
 		return String(value) // 'true' or 'false'
 	}
-	if (isString(value)) {
+	if (typeof value === 'string') {
 		// Use native JSON.stringify for robust escaping AND quoting
 		return JSON.stringify(value)
 	}
-	if (isNumber(value)) {
-		return isFinite(value) ? String(value) : 'null' // Handle NaN/Infinity
+	if (typeof value === 'number') {
+		return Number.isFinite(value) ? String(value) : 'null' // Handle NaN/Infinity
 	}
-	if (isUndefined(value) || isFunction(value) || isSymbol(value)) {
+	if (
+		value === undefined ||
+		typeof value === 'function' ||
+		typeof value === 'symbol'
+	) {
 		return undefined // Omitted in objects, null in arrays (handled by caller)
 	}
 	if (typeof value === 'bigint') {
 		throw new TypeError('Do not know how to serialize a BigInt')
 	}
-	if (isRegExp(value)) {
+	if (value instanceof RegExp) {
 		return JSON.stringify(String(value))
 	}
 	// Handle Date objects explicitly
-	if (isDate(value)) {
-		if (isFinite(value.getTime())) {
+	if (value instanceof Date) {
+		if (Number.isFinite(value.getTime())) {
 			// Stringify the ISO string to get the required quotes
 			return JSON.stringify(value.toISOString())
 		} else {
 			return 'null' // Invalid date becomes null
 		}
 	}
-	if (isError(value)) {
+	if (value instanceof Error) {
 		return JSON.stringify({
 			type: 'Error',
 			value: value?.toString() ?? { name: value.name, message: value.message },
@@ -88,9 +74,9 @@ export default function deepStringify(
 	let result: string | undefined
 
 	try {
-		// 3. Handle Arrays using _.map
-		if (isArray(value)) {
-			const elements = map(value, (element: unknown): string => {
+		// 3. Handle Arrays
+		if (Array.isArray(value)) {
+			const elements = value.map((element: unknown): string => {
 				const stringifiedElement = deepStringify(element, visited)
 				// JSON spec: undefined/function/symbol array elements become null
 				return stringifiedElement === undefined ? 'null' : stringifiedElement

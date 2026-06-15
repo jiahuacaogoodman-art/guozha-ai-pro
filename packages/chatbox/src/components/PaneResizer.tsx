@@ -1,6 +1,7 @@
 import { createSignal, onCleanup } from 'solid-js'
 
 interface PaneResizerProps {
+	activeDocument: Document
 	onResizeStart?: () => void
 	onResize: (deltaY: number) => void
 	onResizeEnd?: () => void
@@ -11,12 +12,14 @@ export function PaneResizer(props: PaneResizerProps) {
 	const [isResizing, setIsResizing] = createSignal(false)
 	let startY = 0
 	let removeListeners: (() => void) | undefined
+	let resizeDocument: Document | undefined
 
 	function stopResize() {
 		removeListeners?.()
 		removeListeners = undefined
 		setIsResizing(false)
-		document.body.classList.remove('chatbox-resize-active')
+		resizeDocument?.body.classList.remove('chatbox-resize-active')
+		resizeDocument = undefined
 	}
 
 	function onPointerDown(event: PointerEvent) {
@@ -28,8 +31,9 @@ export function PaneResizer(props: PaneResizerProps) {
 		stopResize()
 		props.onResizeStart?.()
 		startY = event.clientY
+		resizeDocument = props.activeDocument
 		setIsResizing(true)
-		document.body.classList.add('chatbox-resize-active')
+		resizeDocument.body.classList.add('chatbox-resize-active')
 
 		const onPointerMove = (moveEvent: PointerEvent) => {
 			props.onResize(startY - moveEvent.clientY)
@@ -40,13 +44,13 @@ export function PaneResizer(props: PaneResizerProps) {
 			stopResize()
 		}
 
-		document.addEventListener('pointermove', onPointerMove)
-		document.addEventListener('pointerup', onPointerUp)
-		document.addEventListener('pointercancel', onPointerUp)
+		resizeDocument.addEventListener('pointermove', onPointerMove)
+		resizeDocument.addEventListener('pointerup', onPointerUp)
+		resizeDocument.addEventListener('pointercancel', onPointerUp)
 		removeListeners = () => {
-			document.removeEventListener('pointermove', onPointerMove)
-			document.removeEventListener('pointerup', onPointerUp)
-			document.removeEventListener('pointercancel', onPointerUp)
+			resizeDocument?.removeEventListener('pointermove', onPointerMove)
+			resizeDocument?.removeEventListener('pointerup', onPointerUp)
+			resizeDocument?.removeEventListener('pointercancel', onPointerUp)
 		}
 	}
 

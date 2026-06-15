@@ -1,9 +1,9 @@
 import { XMLParser } from 'fast-xml-parser'
 import { decode as decodeHtmlEntities } from 'html-entities'
-import { isNil } from 'lodash-es'
 import { apiLimiter } from '~/utils/api-limiter'
 import { NSAPI } from '~/utils/ns-api'
 import requestUrl from '~/utils/request-url'
+import { isNil } from '~/utils/std'
 
 export interface DeltaEntry {
 	path: string

@@ -1,4 +1,3 @@
-import { throttle } from 'lodash-es'
 import { Notice } from 'obsidian'
 import SyncProgressModal from '../components/SyncProgressModal'
 import {
@@ -10,6 +9,7 @@ import {
 } from '../events'
 import i18n from '../i18n'
 import NutstorePlugin from '../index'
+import { throttle } from '../utils/std'
 
 export class ProgressService {
 	private progressModal: SyncProgressModal | null = null

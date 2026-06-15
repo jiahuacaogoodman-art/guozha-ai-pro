@@ -1,5 +1,5 @@
 import { Buffer } from 'buffer'
-import { TFile, type Vault } from 'obsidian'
+import { TFile, type App, type Vault } from 'obsidian'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WebDAVClient } from 'webdav'
 
@@ -26,7 +26,9 @@ function createVault(files = new Map<string, TFile>()) {
 		getAbstractFileByPath: vi.fn((path: string) => files.get(path) ?? null),
 		readBinary: vi.fn(async () => Uint8Array.from([9, 8]).buffer),
 		modifyBinary: vi.fn(async () => undefined),
-		createBinary: vi.fn(async (path: string) => files.set(path, makeFile(path))),
+		createBinary: vi.fn(async (path: string) =>
+			files.set(path, makeFile(path)),
+		),
 		modify: vi.fn(async () => undefined),
 		create: vi.fn(async (path: string) => files.set(path, makeFile(path))),
 		createFolder: vi.fn(async () => undefined),
@@ -56,6 +58,15 @@ function createVault(files = new Map<string, TFile>()) {
 	}
 }
 
+function createApp(vault: Vault): App {
+	return {
+		vault,
+		fileManager: {
+			trashFile: vi.fn(),
+		},
+	} as unknown as App
+}
+
 function createWebdav() {
 	return {
 		getFileContents: vi.fn(),
@@ -78,6 +89,7 @@ describe('PullTask', () => {
 		webdav.getFileContents.mockResolvedValue(remoteBuffer)
 
 		const task = new PullTask({
+			app: createApp(vault),
 			vault,
 			webdav,
 			remoteBaseDir: '/remote',
@@ -104,6 +116,7 @@ describe('PullTask', () => {
 		webdav.getFileContents.mockResolvedValue(remoteBuffer)
 
 		const task = new PullTask({
+			app: createApp(vault),
 			vault,
 			webdav,
 			remoteBaseDir: '/remote',
@@ -132,6 +145,7 @@ describe('PushTask', () => {
 		webdav.putFileContents.mockResolvedValue(true)
 
 		const task = new PushTask({
+			app: createApp(vault),
 			vault,
 			webdav,
 			remoteBaseDir: '/remote',
@@ -161,6 +175,7 @@ describe('PushTask', () => {
 		webdav.putFileContents.mockResolvedValue(true)
 
 		const task = new PushTask({
+			app: createApp(vault),
 			vault,
 			webdav,
 			remoteBaseDir: '/remote',
@@ -184,6 +199,7 @@ describe('ConflictResolveTask', () => {
 		webdav.getFileContents.mockResolvedValue(remoteContent)
 
 		const task = new ConflictResolveTask({
+			app: createApp(vault),
 			vault,
 			webdav,
 			remoteBaseDir: '/remote',
@@ -224,6 +240,7 @@ describe('ConflictResolveTask', () => {
 		webdav.getFileContents.mockResolvedValue(remoteContent)
 
 		const task = new ConflictResolveTask({
+			app: createApp(vault),
 			vault,
 			webdav,
 			remoteBaseDir: '/remote',
@@ -263,6 +280,7 @@ describe('ConflictResolveTask', () => {
 		webdav.putFileContents.mockResolvedValue(true)
 
 		const task = new ConflictResolveTask({
+			app: createApp(vault),
 			vault,
 			webdav,
 			remoteBaseDir: '/remote',

@@ -1,4 +1,3 @@
-import { chunk } from 'lodash-es'
 import { Notice, Platform, Vault, moment, normalizePath } from 'obsidian'
 import { dirname } from 'path-browserify'
 import { Subscription } from 'rxjs'
@@ -27,6 +26,7 @@ import getTaskName from '~/utils/get-task-name'
 import { is503Error } from '~/utils/is-503-error'
 import logger from '~/utils/logger'
 import { statVaultItem } from '~/utils/stat-vault-item'
+import { chunk } from '~/utils/std'
 import { stdRemotePath } from '~/utils/std-remote-path'
 import NutstorePlugin from '..'
 import TwoWaySyncDecider from './decision/two-way.decider'
@@ -277,6 +277,7 @@ export class NutstoreSync {
 							// Directory doesn't exist, create mkdir task
 							// No need to check parent's parent since createDirectory uses recursive: true
 							const mkdirTask = new MkdirRemoteTask({
+								app: this.app,
 								vault: this.vault,
 								webdav: webdav,
 								remoteBaseDir: this.remoteBaseDir,

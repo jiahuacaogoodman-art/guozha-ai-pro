@@ -86,7 +86,7 @@ export interface ChatboxViewModel {
 	selectedModelSupportsImages?: boolean
 }
 
-export interface ChatboxProps extends ChatboxViewModel {
+export interface ChatboxActions {
 	onNewSession: () => void
 	onNewFragment: () => void
 	onCompressContext: () => Promise<void>
@@ -104,6 +104,12 @@ export interface ChatboxProps extends ChatboxViewModel {
 		messageId: string,
 		options?: { restoreFiles?: boolean },
 	) => Promise<void>
+}
+
+export type ChatboxViewProps = ChatboxViewModel & ChatboxActions
+
+export interface ChatboxProps extends ChatboxViewProps {
+	activeDocument: Document
 	renderMarkdown?: (
 		el: HTMLElement,
 		markdown: string,

@@ -1,4 +1,3 @@
-import { isEqual, noop } from 'lodash-es'
 import { BufferLike } from 'webdav'
 import i18n from '~/i18n'
 import { StatModel } from '~/model/stat.model'
@@ -15,6 +14,7 @@ import logger from '~/utils/logger'
 import { mergeDigIn } from '~/utils/merge-dig-in'
 import { statVaultItem } from '~/utils/stat-vault-item'
 import { statWebDAVItem } from '~/utils/stat-webdav-item'
+import { isEqual } from '~/utils/std'
 import {
 	LatestTimestampResolution,
 	resolveByIntelligentMerge,
@@ -140,7 +140,6 @@ export default class ConflictResolveTask extends BaseTask {
 					})
 					break
 				case LatestTimestampResolution.NoChange:
-					noop()
 					break
 			}
 

@@ -145,7 +145,8 @@ export default class AccountSettings extends BaseSettings {
 				.addButton((button) => {
 					button.setButtonText(i18n.t('settings.login.name'))
 					button.setDisabled(oauthUrl.length === 0)
-					const anchor = document.createElement('a')
+					const ownerDocument = button.buttonEl.ownerDocument
+					const anchor = ownerDocument.createElement('a')
 					anchor.target = '_blank'
 					button.buttonEl.parentElement?.appendChild(anchor)
 					anchor.appendChild(button.buttonEl)
@@ -153,7 +154,7 @@ export default class AccountSettings extends BaseSettings {
 						anchor.href = oauthUrl
 					}
 					this.updateOAuthUrlTimer = window.setInterval(async () => {
-						const stillInDoc = document.contains(anchor)
+						const stillInDoc = ownerDocument.contains(anchor)
 						if (!stillInDoc) {
 							this.clearOAuthUrlTimer()
 							return

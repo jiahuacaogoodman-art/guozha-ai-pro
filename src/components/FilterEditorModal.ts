@@ -1,7 +1,7 @@
-import { cloneDeep } from 'lodash-es'
 import { Modal, Setting } from 'obsidian'
 import i18n from '~/i18n'
 import { getUserOptions, GlobMatchOptions } from '~/utils/glob-match'
+import { cloneDeep } from '~/utils/std'
 import NutstorePlugin from '..'
 
 enum FilterType {

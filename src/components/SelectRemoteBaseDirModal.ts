@@ -19,7 +19,7 @@ export default class SelectRemoteBaseDirModal extends Modal {
 	async onOpen() {
 		const { contentEl } = this
 
-		const explorer = document.createElement('div')
+		const explorer = contentEl.ownerDocument.createElement('div')
 		contentEl.appendChild(explorer)
 
 		const webdav = await this.plugin.webDAVService.createWebDAVClient()

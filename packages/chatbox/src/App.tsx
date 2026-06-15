@@ -62,6 +62,7 @@ function App(props: AppProps) {
 	let previousActiveSessionId = props.activeSessionId
 	let defaultDesktopInputHeight = DEFAULT_DESKTOP_INPUT_HEIGHT
 	let dragStartHeight = 0
+	const activeDocument = () => props.activeDocument
 
 	const hasTasks = () =>
 		props.currentSessionTasks.length + props.otherSessionTasks.length > 0
@@ -170,7 +171,7 @@ function App(props: AppProps) {
 	}
 
 	function scrollMessagesToBottom(behavior: ScrollBehavior = 'smooth') {
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			if (!messagesEl) {
 				return
 			}
@@ -183,11 +184,16 @@ function App(props: AppProps) {
 
 	createEffect(() => {
 		const activeSessionId = props.activeSessionId
-		props.timeline.length
-		props.currentSessionTasks.length
-		props.otherSessionTasks.length
-		props.pendingMessages.length
-		props.runState
+		const scrollTrigger = [
+			props.timeline.length,
+			props.currentSessionTasks.length,
+			props.otherSessionTasks.length,
+			props.pendingMessages.length,
+			props.runState,
+		].join(':')
+		if (!scrollTrigger) {
+			return
+		}
 		const behavior =
 			previousActiveSessionId !== activeSessionId ? 'auto' : 'smooth'
 		previousActiveSessionId = activeSessionId
@@ -207,7 +213,9 @@ function App(props: AppProps) {
 
 		const onPointerDown = (event: PointerEvent) => {
 			const target = event.target
-			if (!(target instanceof Node)) {
+			const ownerDocument = activeDocument()
+			const ownerWindow = ownerDocument.defaultView ?? window
+			if (!(target instanceof ownerWindow.Node)) {
 				return
 			}
 			if (historyEl?.contains(target) || modelPickerEl?.contains(target)) {
@@ -217,8 +225,11 @@ function App(props: AppProps) {
 			setModelPickerOpen(false)
 		}
 
-		document.addEventListener('pointerdown', onPointerDown)
-		onCleanup(() => document.removeEventListener('pointerdown', onPointerDown))
+		const ownerDocument = activeDocument()
+		ownerDocument.addEventListener('pointerdown', onPointerDown)
+		onCleanup(() => {
+			ownerDocument.removeEventListener('pointerdown', onPointerDown)
+		})
 	})
 
 	createEffect(() => {
@@ -751,6 +762,7 @@ function App(props: AppProps) {
 
 					<Show when={desktopResizeEnabled()}>
 						<PaneResizer
+							activeDocument={activeDocument()}
 							onResizeStart={onInputPaneResizeStart}
 							onResize={onInputPaneResize}
 							onResizeEnd={onInputPaneResizeEnd}

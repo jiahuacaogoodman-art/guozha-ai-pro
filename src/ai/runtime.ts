@@ -1,5 +1,4 @@
 import type {
-	GenerateTextResult,
 	ImageModelUsage,
 	LanguageModelResponseMetadata,
 	LanguageModelUsage,
@@ -55,7 +54,10 @@ interface NodeRequestModule {
 }
 
 interface NodeClientRequest {
-	on: (event: string, listener: (...args: any[]) => void) => NodeClientRequest
+	on: (
+		event: string,
+		listener: (...args: unknown[]) => void,
+	) => NodeClientRequest
 	write: (body: string) => void
 	end: () => void
 	destroy?: (error?: Error) => void
@@ -66,8 +68,46 @@ interface NodeIncomingMessage {
 	statusCode?: number
 	statusMessage?: string
 	headers?: Record<string, string | string[] | undefined>
-	on: (event: string, listener: (...args: any[]) => void) => NodeIncomingMessage
+	on: (
+		event: string,
+		listener: (...args: unknown[]) => void,
+	) => NodeIncomingMessage
 	destroy?: (error?: Error) => void
+}
+
+interface AssistantToolCallLike {
+	toolCallId: string
+	toolName: string
+	input?: unknown
+}
+
+interface AssistantGenerationLike {
+	text: string
+	toolCalls?: AssistantToolCallLike[]
+	files?: Array<{ base64: string; mediaType: string }>
+	response?: { body?: unknown }
+}
+
+type RuntimeWindow = Window & {
+	require?: (moduleName: string) => unknown
+}
+
+type RawObject = Record<string, unknown>
+
+function isRawObject(value: unknown): value is RawObject {
+	return !!value && typeof value === 'object'
+}
+
+function rawObject(value: unknown): RawObject {
+	return isRawObject(value) ? value : {}
+}
+
+function rawString(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined
+}
+
+function rawArray(value: unknown): unknown[] {
+	return Array.isArray(value) ? value : []
 }
 
 export interface GenerateAssistantTurnResult {
@@ -91,13 +131,13 @@ function withTimeout<T>(
 ): Promise<T> {
 	let timeoutId: number | undefined
 	const timeout = new Promise<never>((_, reject) => {
-		timeoutId = globalThis.setTimeout(() => {
+		timeoutId = window.setTimeout(() => {
 			reject(new Error(message))
-		}, timeoutMs) as unknown as number
+		}, timeoutMs)
 	})
 	return Promise.race([promise, timeout]).finally(() => {
 		if (timeoutId !== undefined) {
-			globalThis.clearTimeout(timeoutId)
+			window.clearTimeout(timeoutId)
 		}
 	})
 }
@@ -202,7 +242,7 @@ function toModelMessages(messages: AIMessage[]): ModelMessage[] {
 				}
 		}
 		throw new Error(
-			`Unsupported AI message role: ${(message as AIMessage).role}`,
+			`Unsupported AI message role: ${String((message as { role?: unknown }).role)}`,
 		)
 	})
 }
@@ -230,27 +270,16 @@ function contentPartFromRawPart(part: unknown): AIMessageContentPart[] {
 	if (!part || typeof part !== 'object') {
 		return []
 	}
-	const value = part as Record<string, any>
-	const text =
-		typeof value.text === 'string'
-			? value.text
-			: typeof value.output_text === 'string'
-				? value.output_text
-				: undefined
+	const value = rawObject(part)
+	const imageUrlValue = rawObject(value.image_url)
+	const text = rawString(value.text) ?? rawString(value.output_text)
 	const imageUrl =
-		typeof value.image_url === 'string'
-			? value.image_url
-			: typeof value.image_url?.url === 'string'
-				? value.image_url.url
-				: typeof value.url === 'string' && value.type?.includes?.('image')
-					? value.url
-					: undefined
-	const base64 =
-		typeof value.b64_json === 'string'
-			? value.b64_json
-			: typeof value.base64 === 'string'
-				? value.base64
-				: undefined
+		rawString(value.image_url) ??
+		rawString(imageUrlValue.url) ??
+		(rawString(value.url) && rawString(value.type)?.includes('image')
+			? rawString(value.url)
+			: undefined)
+	const base64 = rawString(value.b64_json) ?? rawString(value.base64)
 
 	if (text) {
 		return [{ type: 'text', text }]
@@ -263,13 +292,17 @@ function contentPartFromRawPart(part: unknown): AIMessageContentPart[] {
 			{
 				type: 'image_url',
 				image_url: {
-					url: dataUrlFromBase64(base64, value.mediaType || value.media_type),
+					url: dataUrlFromBase64(
+						base64,
+						rawString(value.mediaType) ?? rawString(value.media_type),
+					),
 				},
 			},
 		]
 	}
-	if (Array.isArray(value.content)) {
-		return value.content.flatMap(contentPartFromRawPart)
+	const content = rawArray(value.content)
+	if (content.length > 0) {
+		return content.flatMap(contentPartFromRawPart)
 	}
 	return []
 }
@@ -287,10 +320,12 @@ function extractRawAssistantContentParts(
 	if (!body || typeof body !== 'object') {
 		return []
 	}
-	const value = body as Record<string, any>
+	const value = rawObject(body)
 	const choiceParts = Array.isArray(value.choices)
-		? value.choices.flatMap((choice: any) =>
-				contentPartsFromRawContent(choice?.message?.content),
+		? value.choices.flatMap((choice) =>
+				contentPartsFromRawContent(
+					rawObject(rawObject(choice).message).content,
+				),
 			)
 		: []
 	if (choiceParts.length > 0) {
@@ -300,18 +335,15 @@ function extractRawAssistantContentParts(
 		return toTextParts(value.output_text) || []
 	}
 	if (Array.isArray(value.output)) {
-		return value.output.flatMap((item: any) =>
-			contentPartsFromRawContent(item?.content ?? item),
+		return value.output.flatMap((item) =>
+			contentPartsFromRawContent(rawObject(item).content ?? item),
 		)
 	}
 	return contentPartsFromRawContent(value.content)
 }
 
 function toAssistantMessage(
-	result: Pick<GenerateTextResult<any, any>, 'text' | 'toolCalls'> & {
-		files?: Array<{ base64: string; mediaType: string }>
-		response?: { body?: unknown }
-	},
+	result: AssistantGenerationLike,
 	interleavedField?: string,
 ): AIMessage {
 	const toolCalls = (result.toolCalls || []).map((toolCall) => ({
@@ -357,8 +389,9 @@ function toAssistantMessage(
 				}
 
 	if (interleavedField && message.role === 'assistant') {
-		const body = result.response?.body as any
-		const raw = body?.choices?.[0]?.message?.[interleavedField]
+		const body = rawObject(result.response?.body)
+		const firstChoice = rawObject(rawArray(body.choices)[0])
+		const raw = rawObject(firstChoice.message)[interleavedField]
 		if (raw !== undefined) {
 			message.interleaved = { [interleavedField]: raw }
 		}
@@ -705,8 +738,7 @@ async function generateTextAssistantTurnDirect(
 }
 
 function getRuntimeRequire(): ((moduleName: string) => unknown) | undefined {
-	const candidate =
-		(globalThis as any).require || (globalThis as any).window?.require
+	const candidate = (window as RuntimeWindow).require
 	return typeof candidate === 'function' ? candidate : undefined
 }
 
@@ -836,7 +868,7 @@ async function createDirectStreamingResponse(
 		return createNodeStreamingResponse(url, init, nodeTransport)
 	}
 
-	const nativeFetch = globalThis.fetch?.bind(globalThis)
+	const nativeFetch = window.fetch?.bind(window)
 	if (!nativeFetch) {
 		throw new Error('Native streaming transport is unavailable.')
 	}

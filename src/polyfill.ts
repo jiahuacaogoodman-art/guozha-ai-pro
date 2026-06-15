@@ -1,13 +1,20 @@
-type ProcessLike = typeof globalThis.process & {
+type ProcessLike = {
+	cwd?: () => string
 	env?: Record<string, string | undefined>
 }
 
-const processLike: ProcessLike = (globalThis.process ?? {
+type RuntimeWindow = Window & {
+	process?: ProcessLike
+}
+
+const runtimeWindow = window as RuntimeWindow
+
+const processLike: ProcessLike = runtimeWindow.process ?? {
 	cwd() {
 		return '/'
 	},
 	env: {},
-}) as ProcessLike
+}
 
 if (typeof processLike.cwd !== 'function') {
 	processLike.cwd = () => '/'
@@ -17,6 +24,6 @@ if (!processLike.env || typeof processLike.env !== 'object') {
 	processLike.env = {}
 }
 
-globalThis.process = processLike
+runtimeWindow.process = processLike
 
 export {}

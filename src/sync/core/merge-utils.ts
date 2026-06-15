@@ -1,7 +1,7 @@
 import { diff_match_patch } from 'diff-match-patch'
-import { isEqual } from 'lodash-es'
 import { diff3Merge as nodeDiff3Merge } from 'node-diff3'
 import { BufferLike } from 'webdav'
+import { isEqual } from '~/utils/std'
 
 // --- Logic for Latest Timestamp Resolution ---
 
@@ -87,8 +87,8 @@ function diff3MergeStrings(
 	}
 	const result: string[][] = []
 	for (const region of regions) {
-		if (region.ok) {
-			result.push(region.ok as string[])
+		if (Array.isArray(region.ok)) {
+			result.push(region.ok)
 		}
 	}
 	return result.flat().join('\n')

@@ -34,6 +34,7 @@ export default class TwoWaySyncDecider extends BaseSyncDecider {
 
 		// 创建共用的task选项
 		const commonTaskOptions = {
+			app: this.app,
 			webdav: this.webdav,
 			vault: this.vault,
 			remoteBaseDir: this.remoteBaseDir,

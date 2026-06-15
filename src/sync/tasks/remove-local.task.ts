@@ -20,7 +20,12 @@ export default class RemoveLocalTask extends BaseTask {
 					success: true,
 				} as const
 			}
-			await removeLocalPath(this.vault, this.localPath, this.options.recursive)
+			await removeLocalPath(
+				this.vault,
+				this.localPath,
+				this.options.recursive,
+				this.options.app,
+			)
 			return { success: true } as const
 		} catch (e) {
 			logger.error(e)

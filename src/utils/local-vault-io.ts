@@ -1,4 +1,4 @@
-import { normalizePath, TFile, Vault } from 'obsidian'
+import { App, normalizePath, TFile, Vault } from 'obsidian'
 
 function isAdapterPathNormalized(vault: Vault, normalizedPath: string) {
 	const pathForCheck = normalizedPath.replace(/^\/+/, '').replace(/\/+$/, '')
@@ -82,6 +82,7 @@ export async function removeLocalPath(
 	vault: Vault,
 	path: string,
 	recursive = false,
+	app: App,
 ) {
 	const normalizedPath = normalizePath(path)
 	if (isAdapterPathNormalized(vault, normalizedPath)) {
@@ -100,5 +101,5 @@ export async function removeLocalPath(
 	if (!file) {
 		return
 	}
-	await vault.trash(file, false)
+	await app.fileManager.trashFile(file)
 }

@@ -1,4 +1,4 @@
-import { normalizePath, Vault } from 'obsidian'
+import { App, normalizePath, Vault } from 'obsidian'
 import { isAbsolute, join } from 'path-browserify'
 import { WebDAVClient } from 'webdav'
 import { SyncRecord } from '~/storage/sync-record'
@@ -6,6 +6,7 @@ import getTaskName from '~/utils/get-task-name'
 import { MaybePromise } from '~/utils/types'
 
 export interface BaseTaskOptions {
+	app: App
 	vault: Vault
 	webdav: WebDAVClient
 	remoteBaseDir: string

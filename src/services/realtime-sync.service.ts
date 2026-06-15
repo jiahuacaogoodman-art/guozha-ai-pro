@@ -1,6 +1,6 @@
-import { debounce } from 'lodash-es'
 import { useSettings } from '~/settings'
 import { SyncStartMode } from '~/sync'
+import { debounce } from '~/utils/std'
 import waitUntil from '~/utils/wait-until'
 import NutstorePlugin from '..'
 import type SyncExecutorService from './sync-executor.service'

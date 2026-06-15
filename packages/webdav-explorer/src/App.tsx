@@ -41,9 +41,9 @@ function App(props: AppProps) {
 					<NewFolder
 						class="mt-1"
 						onCancel={() => setShowNewFolder(false)}
-						onConfirm={async (name) => {
+						onConfirm={(name) => {
 							const target = path.join(cwd() ?? '/', name)
-							await Promise.resolve(props.fs.mkdirs(target))
+							void Promise.resolve(props.fs.mkdirs(target))
 								.then(() => {
 									setShowNewFolder(false)
 									list.refresh()

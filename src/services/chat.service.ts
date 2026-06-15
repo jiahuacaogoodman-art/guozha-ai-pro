@@ -54,7 +54,7 @@ import {
 import type {
 	ChatImageAttachment,
 	ChatSendPayload,
-	ChatboxProps,
+	ChatboxViewProps,
 	ChatProviderOption,
 } from '~/chatbox/types'
 import i18n from '~/i18n'
@@ -456,7 +456,7 @@ export default class ChatService {
 		this.notify()
 	}
 
-	getViewProps(): ChatboxProps {
+	getViewProps(): ChatboxViewProps {
 		const activeSession = this.getLoadedActiveSession()
 		const activeRuntime = activeSession
 			? this.getRuntime(activeSession.id)
@@ -1326,7 +1326,7 @@ export default class ChatService {
 		this.sessionIndex = nextIndex
 	}
 
-	private buildTimeline(session: AISession): ChatboxProps['timeline'] {
+	private buildTimeline(session: AISession): ChatboxViewProps['timeline'] {
 		const flattenedMessages = session.fragments.flatMap(
 			(fragment) => fragment.messages,
 		)
@@ -2370,15 +2370,7 @@ export default class ChatService {
 		if (!target) {
 			return
 		}
-		if (typeof this.plugin.app.vault.delete === 'function') {
-			await this.plugin.app.vault.delete(target, true)
-			return
-		}
-		if (typeof this.plugin.app.vault.trash === 'function') {
-			await this.plugin.app.vault.trash(target, false)
-			return
-		}
-		throw new Error(`Unable to delete ${path}: vault delete is unavailable.`)
+		await this.plugin.app.fileManager.trashFile(target)
 	}
 
 	private async ensureVaultDirectory(path: string) {

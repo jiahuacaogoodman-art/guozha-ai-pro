@@ -277,6 +277,13 @@ function createMockVault(
 function createApp(vault: Vault) {
 	return {
 		vault,
+		fileManager: {
+			async trashFile(file: MockFile | MockFolder) {
+				await (
+					vault as unknown as { delete: (target: typeof file) => Promise<void> }
+				).delete(file)
+			},
+		},
 	} as unknown as App
 }
 
@@ -339,8 +346,9 @@ describe('vault bash runtime', () => {
 			},
 			[],
 		)
+		const app = createApp(vault)
 		const mounted = new MountedVaultFs(
-			new ObsidianVaultFs(vault, ['/', '/note.md']),
+			new ObsidianVaultFs(app, vault, ['/', '/note.md']),
 		)
 
 		await mounted.writeFile('/scratch.txt', 'temp')
@@ -357,8 +365,10 @@ describe('vault bash runtime', () => {
 			},
 			['docs', 'docs/nested'],
 		)
+		const app = createApp(vault)
 		const recorder = new ReversibleOpRecorder()
 		const fs = new ObsidianVaultFs(
+			app,
 			vault,
 			['/', '/docs', '/docs/existing.md', '/docs/nested', '/docs/nested/a.txt'],
 			undefined,
@@ -462,8 +472,10 @@ describe('vault bash runtime', () => {
 			},
 			['docs'],
 		)
+		const app = createApp(vault)
 		const requests: PermissionRequest[] = []
 		const fs = new ObsidianVaultFs(
+			app,
 			vault,
 			['/', '/docs', '/docs/source.md'],
 			async (request) => {
@@ -504,8 +516,10 @@ describe('vault bash runtime', () => {
 			},
 			['docs'],
 		)
+		const app = createApp(vault)
 		const recorder = new ReversibleOpRecorder()
 		const fs = new ObsidianVaultFs(
+			app,
 			vault,
 			[
 				'/',

@@ -97,10 +97,9 @@ function encodeContent(
 }
 
 function toArrayBuffer(content: Uint8Array) {
-	return content.buffer.slice(
-		content.byteOffset,
-		content.byteOffset + content.byteLength,
-	) as ArrayBuffer
+	const output = new ArrayBuffer(content.byteLength)
+	new Uint8Array(output).set(content)
+	return output
 }
 
 function getPathDepth(path: string) {
@@ -155,11 +154,14 @@ function mapAbstractFileStat(file: TAbstractFile): FsStat {
 			mtime: 0,
 		})
 	}
+	if (!(file instanceof TFile)) {
+		throw new Error(`Unsupported vault item: ${file.path}`)
+	}
 
 	return mapStat({
 		type: 'file',
-		size: (file as TFile).stat.size,
-		mtime: (file as TFile).stat.mtime,
+		size: file.stat.size,
+		mtime: file.stat.mtime,
 	})
 }
 
@@ -285,6 +287,7 @@ export class ObsidianVaultFs implements IFileSystem {
 	private _batchDepth = 0
 
 	constructor(
+		private readonly app: App,
 		private readonly vault: Vault,
 		initialPaths: string[] = [],
 		private readonly permissionGuard?: PermissionGuard,
@@ -354,17 +357,11 @@ export class ObsidianVaultFs implements IFileSystem {
 	}
 
 	private async readFileContentBase64(target: TFile) {
-		return encodeBase64(
-			new Uint8Array(
-				(await this.vault.readBinary(target as never)) as ArrayBuffer,
-			),
-		)
+		return encodeBase64(new Uint8Array(await this.vault.readBinary(target)))
 	}
 
 	private async snapshotNode(
-		target:
-			| TAbstractFile
-			| { path: string; name: string; children?: unknown[] },
+		target: TAbstractFile,
 		virtualPath: string,
 	): Promise<VaultSnapshotNode[]> {
 		if (target instanceof TFolder) {
@@ -383,12 +380,15 @@ export class ObsidianVaultFs implements IFileSystem {
 			snapshots.push({ path: virtualPath, kind: 'dir' })
 			return snapshots
 		}
+		if (!(target instanceof TFile)) {
+			throw new Error(`Unsupported vault item: ${target.path}`)
+		}
 
 		return [
 			{
 				path: virtualPath,
 				kind: 'file',
-				contentBase64: await this.readFileContentBase64(target as TFile),
+				contentBase64: await this.readFileContentBase64(target),
 			},
 		]
 	}
@@ -462,17 +462,7 @@ export class ObsidianVaultFs implements IFileSystem {
 	}
 
 	private async deleteAbstractFile(target: TAbstractFile) {
-		if (typeof this.vault.trash === 'function') {
-			await this.vault.trash(target, false)
-			return
-		}
-		if (typeof this.vault.delete === 'function') {
-			await this.vault.delete(target, false)
-			return
-		}
-		throw new Error(
-			`ENOTSUP: vault delete is not available for '${target.path}'`,
-		)
+		await this.app.fileManager.trashFile(target)
 	}
 
 	private recordPath(inputPath: string) {
@@ -524,8 +514,8 @@ export class ObsidianVaultFs implements IFileSystem {
 		if (!(target instanceof TFile)) {
 			throw new Error(`ENOENT: no such file or directory, read '${path}'`)
 		}
-		const buffer = await this.vault.readBinary(target as never)
-		return new Uint8Array(buffer as ArrayBuffer)
+		const buffer = await this.vault.readBinary(target)
+		return new Uint8Array(buffer)
 	}
 
 	async writeFile(
@@ -551,7 +541,7 @@ export class ObsidianVaultFs implements IFileSystem {
 					path,
 					await this.readFileContentBase64(target),
 				)
-				await this.vault.modifyBinary(target as never, toArrayBuffer(encoded))
+				await this.vault.modifyBinary(target, toArrayBuffer(encoded))
 			} else {
 				await this.vault.createBinary(vaultPath, toArrayBuffer(encoded))
 				this.recorder?.recordCreate(path, 'file')
@@ -570,7 +560,7 @@ export class ObsidianVaultFs implements IFileSystem {
 			const encoded = encodeContent(content, options)
 			const existing = (await this.exists(path))
 				? await this.readFileBuffer(path)
-				: (new Uint8Array(0) as Uint8Array)
+				: new Uint8Array(0)
 			const merged = new Uint8Array(existing.length + encoded.length)
 			merged.set(existing)
 			merged.set(encoded, existing.length)

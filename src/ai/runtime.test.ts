@@ -42,6 +42,13 @@ vi.mock('~/ai/interleaved-message-field', () => ({
 
 vi.mock('~/ai/transport/obsidian-fetch', () => transportMocks)
 
+type RuntimeTestGlobal = typeof globalThis & {
+	window: typeof globalThis
+	require?: unknown
+}
+
+const runtimeGlobal = globalThis as RuntimeTestGlobal
+
 function createProvider(): AIProviderConfig {
 	return {
 		id: 'provider-1',
@@ -71,8 +78,9 @@ function createProvider(): AIProviderConfig {
 describe('generateAssistantTurn', () => {
 	beforeEach(() => {
 		vi.useRealTimers()
+		vi.stubGlobal('window', runtimeGlobal)
 		vi.stubGlobal('fetch', vi.fn())
-		vi.stubGlobal('require', undefined)
+		Reflect.deleteProperty(runtimeGlobal, 'require')
 		aiMocks.generateText.mockReset()
 		aiMocks.streamText.mockReset()
 		aiMocks.generateImage.mockReset()

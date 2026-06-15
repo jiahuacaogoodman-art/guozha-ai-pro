@@ -18,7 +18,7 @@ export default class ChatboxView extends ItemView {
 			component.load()
 
 			const fallbackText = markdown
-			const renderedEl = document.createElement('div')
+			const renderedEl = el.ownerDocument.createElement('div')
 
 			try {
 				await MarkdownRenderer.render(
@@ -69,6 +69,7 @@ export default class ChatboxView extends ItemView {
 	private getChatboxProps(): ChatboxProps {
 		return {
 			...this.plugin.chatService.getViewProps(),
+			activeDocument: this.contentEl.ownerDocument,
 			renderMarkdown: this.renderMarkdown,
 		}
 	}

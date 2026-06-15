@@ -1,11 +1,11 @@
 import { parse as bytesParse } from 'bytes-iec'
-import { clamp, isNil } from 'lodash-es'
 import { Notice, Setting, TextComponent } from 'obsidian'
 import { isNotNil } from 'ramda'
 import SelectRemoteBaseDirModal from '~/components/SelectRemoteBaseDirModal'
 import i18n from '~/i18n'
 import { ConflictStrategy } from '~/sync/tasks/conflict-resolve.task'
 import { isNumeric } from '~/utils/is-numeric'
+import { clamp, isNil } from '~/utils/std'
 import { SyncMode } from './index'
 import BaseSettings from './settings.base'
 

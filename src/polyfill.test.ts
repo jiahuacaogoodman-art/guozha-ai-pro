@@ -1,15 +1,29 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const originalProcess = globalThis.process
+type PolyfillTestGlobal = Omit<typeof globalThis, 'process'> & {
+	window: typeof globalThis
+	process?: {
+		cwd?: () => string
+		env?: Record<string, string | undefined>
+	}
+}
+
+const polyfillGlobal = globalThis as PolyfillTestGlobal
+const originalProcess = polyfillGlobal.process
+
+beforeEach(() => {
+	vi.stubGlobal('window', polyfillGlobal)
+})
 
 afterEach(() => {
-	globalThis.process = originalProcess
+	polyfillGlobal.process = originalProcess
+	vi.unstubAllGlobals()
 	vi.resetModules()
 })
 
 describe('polyfill', () => {
 	it('adds process.env when it is missing', async () => {
-		;(globalThis as typeof globalThis & { process: any }).process = {
+		polyfillGlobal.process = {
 			cwd() {
 				return '/mobile'
 			},
@@ -18,9 +32,9 @@ describe('polyfill', () => {
 		vi.resetModules()
 		await import('./polyfill')
 
-		expect(globalThis.process).toBeDefined()
-		expect(typeof globalThis.process.cwd).toBe('function')
-		expect(globalThis.process.cwd()).toBe('/mobile')
-		expect(globalThis.process.env).toEqual({})
+		expect(polyfillGlobal.process).toBeDefined()
+		expect(typeof polyfillGlobal.process?.cwd).toBe('function')
+		expect(polyfillGlobal.process?.cwd?.()).toBe('/mobile')
+		expect(polyfillGlobal.process?.env).toEqual({})
 	})
 })

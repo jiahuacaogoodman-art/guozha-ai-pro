@@ -23,6 +23,7 @@ export async function createVaultBash(
 ) {
 	const initialPaths = await listVaultPaths(app)
 	const vaultFs = new ObsidianVaultFs(
+		app,
 		app.vault,
 		initialPaths,
 		permissionGuard,

@@ -1,11 +1,11 @@
 import { XMLParser } from 'fast-xml-parser'
-import { isNil, partial } from 'lodash-es'
 import { basename, join } from 'path-browserify'
 import { FileStat } from 'webdav'
 import { NS_DAV_ENDPOINT } from '~/consts'
 import { is503Error } from '~/utils/is-503-error'
 import logger from '~/utils/logger'
 import requestUrl from '~/utils/request-url'
+import { isNil } from '~/utils/std'
 
 interface WebDAVResponse {
 	multistatus: {
@@ -100,7 +100,9 @@ export async function getDirectoryContents(
 				: [result.multistatus.response]
 
 			// 跳过第一个条目（当前目录）
-			contents.push(...items.slice(1).map(partial(convertToFileStat, '/dav')))
+			contents.push(
+				...items.slice(1).map((item) => convertToFileStat('/dav', item)),
+			)
 
 			const linkHeader = response.headers['link'] || response.headers['Link']
 			if (!linkHeader) {

@@ -27,6 +27,10 @@ export default abstract class BaseSyncDecider {
 		return this.sync.vault
 	}
 
+	get app() {
+		return this.sync.app
+	}
+
 	get remoteBaseDir() {
 		return this.sync.remoteBaseDir
 	}
