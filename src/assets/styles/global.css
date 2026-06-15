@@ -182,6 +182,20 @@
 	pointer-events: none;
 }
 
+.guozha-filter-case-button {
+	background: none;
+	box-shadow: none;
+}
+
+.guozha-filter-case-button:hover {
+	background-color: var(--interactive-normal);
+}
+
+.guozha-filter-case-button.is-active,
+.guozha-filter-case-button.is-active:hover {
+	background-color: var(--interactive-accent);
+}
+
 .setting-required .setting-item-name::after {
 	content: ' *';
 	color: var(--text-error);

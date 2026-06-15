@@ -50,6 +50,12 @@
 	border-radius: 999px;
 }
 
+.chatbox-icon-button {
+	border-style: none;
+	background-color: transparent;
+	box-shadow: none;
+}
+
 .chatbox-input {
 	height: 7rem;
 	padding: 0.75rem;

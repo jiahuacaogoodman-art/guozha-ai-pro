@@ -17,7 +17,7 @@ export function CopyButton(props: { getText: () => string }) {
 
 	return (
 		<button
-			class="cursor-pointer p-1 size-5 text-[var(--text-muted)] hover:text-[var(--text-normal)] !border-none !bg-transparent !shadow-none"
+			class="chatbox-icon-button cursor-pointer p-1 size-5 text-[var(--text-muted)] hover:text-[var(--text-normal)]"
 			type="button"
 			title={copied() ? t('copied') : t('copy')}
 			onClick={handleCopy}

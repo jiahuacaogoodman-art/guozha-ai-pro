@@ -66,21 +66,14 @@ export default class FilterEditorModal extends Modal {
 				})
 				const forceCaseBtn = listContainer.createEl('button', {
 					text: 'Aa',
-					cls: 'shadow-none!',
+					cls: 'guozha-filter-case-button',
 				})
 				function updateButtonStatus() {
 					const opt = getUserOptions(filter)
-					const activeCls = ['bg-[var(--interactive-accent)]!']
-					const inactiveCls = [
-						'background-none!',
-						'hover:bg-[--interactive-normal]!',
-					]
 					if (opt.caseSensitive) {
-						forceCaseBtn.classList.add(...activeCls)
-						forceCaseBtn.classList.remove(...inactiveCls)
+						forceCaseBtn.classList.add('is-active')
 					} else {
-						forceCaseBtn.classList.remove(...activeCls)
-						forceCaseBtn.classList.add(...inactiveCls)
+						forceCaseBtn.classList.remove('is-active')
 					}
 				}
 				updateButtonStatus()

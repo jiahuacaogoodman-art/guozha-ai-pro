@@ -60,7 +60,7 @@ export function MessageCard(props: {
 							<Show when={props.onDeleteMessage}>
 								<span onClick={(e) => e.stopPropagation()}>
 									<button
-										class="cursor-pointer p-1 size-5 text-[var(--text-muted)] hover:text-[var(--text-error)] !border-none !bg-transparent !shadow-none"
+										class="chatbox-icon-button cursor-pointer p-1 size-5 text-[var(--text-muted)] hover:text-[var(--text-error)]"
 										type="button"
 										title={t('deleteMessage')}
 										onClick={() =>
@@ -132,7 +132,7 @@ export function MessageCard(props: {
 							<CopyButton getText={getText} />
 							<Show when={props.onDeleteMessage}>
 								<button
-									class="cursor-pointer p-1 size-6 text-[var(--text-muted)] hover:text-[var(--text-error)] !border-none !bg-transparent !shadow-none"
+									class="chatbox-icon-button cursor-pointer p-1 size-6 text-[var(--text-muted)] hover:text-[var(--text-error)]"
 									type="button"
 									title={t('deleteMessage')}
 									onClick={() => props.onDeleteMessage?.(props.item.message.id)}
@@ -162,7 +162,7 @@ export function MessageCard(props: {
 								}
 							>
 								<button
-									class="cursor-pointer p-1 size-6 text-[var(--text-muted)] hover:text-[var(--text-normal)] !border-none !bg-transparent !shadow-none"
+									class="chatbox-icon-button cursor-pointer p-1 size-6 text-[var(--text-muted)] hover:text-[var(--text-normal)]"
 									type="button"
 									title={t('recallMessage')}
 									onClick={() => {
@@ -192,7 +192,7 @@ export function MessageCard(props: {
 								}
 							>
 								<button
-									class="cursor-pointer p-1 size-6 text-[var(--text-muted)] hover:text-[var(--text-normal)] !border-none !bg-transparent !shadow-none"
+									class="chatbox-icon-button cursor-pointer p-1 size-6 text-[var(--text-muted)] hover:text-[var(--text-normal)]"
 									type="button"
 									title={t('regenerateMessage')}
 									onClick={() =>
