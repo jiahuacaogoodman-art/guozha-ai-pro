@@ -7,6 +7,8 @@ const en = {
 	cancel: 'Cancel',
 	confirmDelete: 'Delete',
 	newChat: 'New Chat',
+	exportSession: 'Export',
+	importSession: 'Import',
 	provider: 'Provider',
 	model: 'Model',
 	noProvider: 'No provider',
@@ -23,7 +25,8 @@ const en = {
 	imageAttachment: 'Image',
 	removeAttachment: 'Remove image',
 	imageReadFailed: 'Failed to read image',
-	imageInputUnsupported: 'The selected model does not declare image input support',
+	imageInputUnsupported:
+		'The selected model does not declare image input support',
 	temperature: 'Creativity',
 	maxOutput: 'Max output',
 	lengthShort: 'Short',

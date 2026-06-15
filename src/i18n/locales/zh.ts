@@ -500,10 +500,13 @@ export default {
 		openCommand: '打开果札：AI pro',
 		newChat: '新对话',
 		sessionDeleted: '会话已删除',
+		sessionExported: '会话已导出到 {{path}}',
+		sessionImported: '会话已导入：{{title}}',
 		repeatedToolCallsStopped:
 			'Agent 连续 {{count}} 次调用了完全相同的工具与参数，已停止继续调用。',
 		task: {
 			cancelledSummary: '任务 {{task}} 已取消。',
+			importedCancelledSummary: '任务 {{task}} 在导入会话时已取消。',
 			emptyResult: '任务已完成，但没有返回摘要。',
 		},
 		requestFailed: '请求失败',
@@ -526,6 +529,9 @@ export default {
 			editMatchNotUnique: '要替换的精确文本必须且只能匹配一次。',
 			invalidRegex: '第 {{index}} 个 pattern 的正则无效：{{pattern}}',
 			sessionNotFound: '目标会话已不存在',
+			invalidSessionImport: '所选文件不是果札：AI pro 会话导出文件。',
+			exportSessionFailed: '导出会话失败：{{message}}',
+			importSessionFailed: '导入会话失败：{{message}}',
 			taskDepthExceeded: '任务拆分深度已达到上限',
 			taskConcurrencyLimit:
 				'当前会话已有过多后台任务在运行，限制为 {{limit}} 个',

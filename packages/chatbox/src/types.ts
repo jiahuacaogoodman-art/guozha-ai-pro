@@ -253,6 +253,8 @@ export interface ChatboxActions {
 	onCompressContext: () => Promise<void>
 	onSwitchSession: (sessionId: string) => void
 	onDeleteSession: (sessionId: string) => Promise<void>
+	onExportSession?: () => Promise<void> | void
+	onImportSession?: (file: File) => Promise<void> | void
 	onSelectProvider: (providerId: string) => void
 	onSelectModel: (modelId: string) => void
 	onSendMessage: (payload: ChatSendPayload) => Promise<void>

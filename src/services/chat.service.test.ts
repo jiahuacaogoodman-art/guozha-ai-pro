@@ -62,6 +62,7 @@ vi.mock('~/storage', () => ({
 function createPlugin() {
 	return {
 		app: {},
+		manifest: { version: '1.2.15' },
 		settings: {
 			ai: {
 				providers: {
@@ -169,15 +170,34 @@ function createPluginWithVault(
 		plugin: {
 			app: {
 				vault: {
+					configDir: '.obsidian',
 					getAbstractFileByPath,
 					adapter: {
 						getResourcePath(path: string) {
 							return `app://local/${path}`
 						},
+						async exists(path: string) {
+							const normalized = normalize(path)
+							return files.has(normalized) || folders.has(normalized)
+						},
+						async mkdir(path: string) {
+							ensureFolder(path)
+						},
+						async write(path: string, data: string) {
+							const normalized = normalize(path)
+							ensureFolder(dirname(normalized))
+							files.set(normalized, data)
+						},
 					},
 					async createFolder(path: string) {
 						ensureFolder(path)
 						return getAbstractFileByPath(path)
+					},
+					async create(path: string, data: string) {
+						const normalized = normalize(path)
+						ensureFolder(dirname(normalized))
+						files.set(normalized, data)
+						return getAbstractFileByPath(normalized)
 					},
 					async createBinary(path: string, data: ArrayBuffer) {
 						const normalized = normalize(path)
@@ -210,6 +230,7 @@ function createPluginWithVault(
 					},
 				},
 			},
+			manifest: { version: '1.2.15' },
 			settings: createPlugin().settings,
 		},
 		files,
@@ -1359,6 +1380,144 @@ describe('ChatService fragment workflows', () => {
 		})
 	})
 
+	it('exports the active session into a vault JSON file', async () => {
+		generateAssistantTurn.mockResolvedValueOnce({
+			message: {
+				role: 'assistant',
+				content: [{ type: 'text', text: 'Exported response' }],
+			},
+			meta: {
+				providerId: 'provider-1',
+				providerName: 'Provider',
+				modelName: 'model-a',
+			},
+		})
+		const { plugin, files } = createPluginWithVault()
+		const service = new ChatService(plugin as never)
+
+		await service.ensureSession()
+		await service.sendMessage('Export this session')
+		const sessionId = service.getViewProps().activeSessionId!
+		const exportPath = await service.exportActiveSession()
+		const exported = files.get(exportPath)!
+		const payload = JSON.parse(exported)
+
+		expect(exportPath).toMatch(
+			/^Guozha AI Pro\/exports\/\d{8}-\d{6}-Export this session\.json$/,
+		)
+		expect(payload).toMatchObject({
+			type: 'guozha-ai-pro.chat-session',
+			version: 1,
+			sourcePluginVersion: '1.2.15',
+		})
+		expect(payload.session.id).toBe(sessionId)
+		expect(payload.session.fragments[0].messages[0].message.content[0]).toEqual(
+			{
+				type: 'text',
+				text: 'Export this session',
+			},
+		)
+	})
+
+	it('imports a session with fresh ids and cancels non-terminal tasks', async () => {
+		const { plugin } = createPluginWithVault()
+		const service = new ChatService(plugin as never)
+		await service.ensureSession()
+		const initialSessionId = service.getViewProps().activeSessionId!
+		const sourceSession = {
+			id: 'session-source',
+			createdAt: 1,
+			updatedAt: 2,
+			model: { providerId: 'provider-1', modelId: 'model-1' },
+			inferenceParams: { temperature: 0.2, maxTokens: 800 },
+			activeFragmentId: 'fragment-source',
+			fragments: [
+				{
+					id: 'fragment-source',
+					createdAt: 1,
+					updatedAt: 2,
+					messages: [
+						{
+							id: 'message-source',
+							createdAt: 3,
+							message: {
+								role: 'user',
+								content: [{ type: 'text', text: 'Imported message' }],
+							},
+						},
+					],
+				},
+			],
+			tasks: [
+				{
+					id: 'task-source',
+					sessionId: 'session-source',
+					depth: 0,
+					maxDepth: 2,
+					title: 'Imported work',
+					prompt: 'Keep working',
+					status: 'running',
+					createdAt: 4,
+					startedAt: 5,
+				},
+				{
+					id: 'task-child',
+					sessionId: 'session-source',
+					parentTaskId: 'task-source',
+					depth: 1,
+					maxDepth: 2,
+					title: 'Finished child',
+					prompt: 'Already done',
+					status: 'completed',
+					createdAt: 6,
+					startedAt: 7,
+					finishedAt: 8,
+					summary: 'Done',
+					sourceCount: 1,
+				},
+			],
+			permissions: {
+				allow: [{ operation: 'read', path: 'notes/a.md' }],
+			},
+		}
+		const imported = await service.importSessionFile({
+			text: async () =>
+				JSON.stringify({
+					type: 'guozha-ai-pro.chat-session',
+					version: 1,
+					session: sourceSession,
+				}),
+		} as File)
+
+		expect(imported.id).not.toBe('session-source')
+		expect(imported.id).not.toBe(initialSessionId)
+		expect(imported.fragments[0].id).not.toBe('fragment-source')
+		expect(imported.fragments[0].messages[0].id).not.toBe('message-source')
+		expect(imported.fragments[0].messages[0].message.content?.[0]).toEqual({
+			type: 'text',
+			text: 'Imported message',
+		})
+		expect(imported.tasks[0]).toMatchObject({
+			sessionId: imported.id,
+			status: 'cancelled',
+			cancelReason: 'imported_session',
+		})
+		expect(imported.tasks[0].id).not.toBe('task-source')
+		expect(imported.tasks[1]).toMatchObject({
+			sessionId: imported.id,
+			status: 'completed',
+		})
+		expect(imported.tasks[1].parentTaskId).toBe(imported.tasks[0].id)
+		expect(imported.permissions).toEqual({
+			allow: [{ operation: 'read', path: 'notes/a.md' }],
+		})
+		expect(service.getViewProps().activeSessionId).toBe(imported.id)
+		expect(service.getViewProps().sessionHistory[0].id).toBe(imported.id)
+		expect(await storageState.chatSessionKV.get(imported.id)).toMatchObject({
+			id: imported.id,
+		})
+	})
+
 	it('allows deleting the last session and recreates one on the next send', async () => {
 		generateAssistantTurn.mockResolvedValueOnce({
 			message: {
@@ -1812,7 +1971,17 @@ describe('ChatService fragment workflows', () => {
 		const plugin = {
 			app: {
 				vault: {
+					configDir: '.obsidian',
 					getAbstractFileByPath,
+					adapter: {
+						async exists(path: string) {
+							const normalized = normalizeWritePath(path)
+							return files.has(normalized) || folders.has(normalized)
+						},
+						async mkdir(path: string) {
+							ensureFolder(path)
+						},
+					},
 					async createFolder(path: string) {
 						const normalized = normalizeWritePath(path)
 						ensureFolder(normalized)

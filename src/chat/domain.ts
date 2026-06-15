@@ -185,6 +185,11 @@ export function cloneSession(session: ChatSession): ChatSession {
 			messages: fragment.messages.map(cloneMessageRecord),
 		})),
 		tasks: session.tasks.map(cloneTask),
+		permissions: session.permissions
+			? {
+					allow: session.permissions.allow.map((item) => ({ ...item })),
+				}
+			: undefined,
 	}
 }
 

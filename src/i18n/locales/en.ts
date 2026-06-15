@@ -509,10 +509,14 @@ export default {
 		openCommand: 'Open Guozha AI Pro',
 		newChat: 'New chat',
 		sessionDeleted: 'Session deleted',
+		sessionExported: 'Session exported to {{path}}',
+		sessionImported: 'Session imported: {{title}}',
 		repeatedToolCallsStopped:
 			'The agent repeated the same tool call with the same arguments {{count}} times in a row and was stopped.',
 		task: {
 			cancelledSummary: 'Task {{task}} was cancelled.',
+			importedCancelledSummary:
+				'Task {{task}} was cancelled during session import.',
 			emptyResult: 'Task completed but returned no summary.',
 		},
 		requestFailed: 'Request failed',
@@ -538,6 +542,10 @@ export default {
 				'Exact text to replace must match exactly once in the file.',
 			invalidRegex: 'Invalid regex in pattern {{index}}: {{pattern}}',
 			sessionNotFound: 'The target session no longer exists',
+			invalidSessionImport:
+				'The selected file is not a Guozha AI Pro session export.',
+			exportSessionFailed: 'Failed to export session: {{message}}',
+			importSessionFailed: 'Failed to import session: {{message}}',
 			taskDepthExceeded: 'The task depth limit has been reached',
 			taskConcurrencyLimit:
 				'Too many background tasks are already running in this session. Limit: {{limit}}',

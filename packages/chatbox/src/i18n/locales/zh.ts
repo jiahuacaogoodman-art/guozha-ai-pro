@@ -6,6 +6,8 @@ const zh = {
 	cancel: '取消',
 	confirmDelete: '确认删除',
 	newChat: '新对话',
+	exportSession: '导出',
+	importSession: '导入',
 	provider: 'Provider',
 	model: 'Model',
 	noProvider: '未选择 Provider',

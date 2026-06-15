@@ -46,6 +46,7 @@ import {
 	isTerminalTask,
 	mutateTaskRecord,
 	QueuedChatTask,
+	RunningChatTask,
 	toCancelledTask,
 	toCompletedTask,
 	toFailedTask,
@@ -59,8 +60,10 @@ import type {
 } from '~/chatbox/types'
 import i18n from '~/i18n'
 import { chatMetaKV, chatSessionKV, type ChatMetaRecord } from '~/storage'
+import { getErrorMessage } from '~/utils/async-helpers'
 import createId from '~/utils/create-id'
 import logger from '~/utils/logger'
+import { mkdirsVault } from '~/utils/mkdirs-vault'
 import type NutstorePlugin from '..'
 
 const MAX_TASK_DEPTH = 2
@@ -68,7 +71,11 @@ const MAX_CONCURRENT_TASKS_PER_SESSION = 3
 const CHAT_META_KEY = 'chat_meta'
 const CHAT_INDEX_KEY = 'chat_index'
 const AI_GENERATED_IMAGES_DIR = 'AI Generated Images'
+const CHAT_EXPORTS_DIR = 'Guozha AI Pro/exports'
+const CHAT_EXPORT_PAYLOAD_TYPE = 'guozha-ai-pro.chat-session'
+const CHAT_EXPORT_PAYLOAD_VERSION = 1
 const INTERRUPTED_TASK_CANCEL_REASON = 'interrupted_by_restart'
+const IMPORTED_TASK_CANCEL_REASON = 'imported_session'
 const INTERRUPTED_TASK_FAILURE_STAGE = 'interrupted_by_restart'
 const COMPRESSION_PROMPT = [
 	'Summarize the conversation above for continuation in a fresh context.',
@@ -106,6 +113,14 @@ interface SessionRuntimeState {
 	processing?: Promise<void>
 	stopRequested?: boolean
 	pendingMessages: ChatPendingMessage[]
+}
+
+interface ChatSessionExportPayload {
+	type: typeof CHAT_EXPORT_PAYLOAD_TYPE
+	version: number
+	exportedAt: string
+	sourcePluginVersion?: string
+	session: AISession
 }
 
 function toTextParts(text: string): AIMessageContentPart[] {
@@ -315,6 +330,44 @@ function createTimestampSlug() {
 		pad(date.getMinutes()),
 		pad(date.getSeconds()),
 	].join('')
+}
+
+function safeFilenamePart(value: string) {
+	const normalized = value
+		.replace(/[\\/:*?"<>|\n\r\t#\[\]]+/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim()
+	return (normalized || 'chat-session').slice(0, 80)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null
+}
+
+function isChatSessionLike(value: unknown): value is AISession {
+	return (
+		isRecord(value) &&
+		typeof value.id === 'string' &&
+		typeof value.createdAt === 'number' &&
+		typeof value.updatedAt === 'number' &&
+		typeof value.activeFragmentId === 'string' &&
+		Array.isArray(value.tasks) &&
+		Array.isArray(value.fragments)
+	)
+}
+
+function readImportedSessionPayload(value: unknown) {
+	if (
+		isRecord(value) &&
+		value.type === CHAT_EXPORT_PAYLOAD_TYPE &&
+		isChatSessionLike(value.session)
+	) {
+		return value.session
+	}
+	if (isChatSessionLike(value)) {
+		return value
+	}
+	return undefined
 }
 
 function isVaultFolder(
@@ -541,6 +594,12 @@ export default class ChatService {
 			onDeleteSession: async (sessionId: string) => {
 				await this.deleteSession(sessionId)
 			},
+			onExportSession: async () => {
+				await this.exportActiveSession()
+			},
+			onImportSession: async (file: File) => {
+				await this.importSessionFile(file)
+			},
 			onSelectProvider: (providerId: string) => {
 				this.selectProvider(providerId)
 			},
@@ -634,6 +693,76 @@ export default class ChatService {
 		await this.persistMetaAndIndex()
 		this.notify()
 		new Notice(i18n.t('chatbox.sessionDeleted'))
+	}
+
+	async exportActiveSession() {
+		await this.initialize()
+		try {
+			const session = this.getLoadedActiveSession()
+			if (!session) {
+				throw new Error(i18n.t('chatbox.errors.sessionNotFound'))
+			}
+
+			await this.ensureVaultDirectory(CHAT_EXPORTS_DIR)
+			const payload: ChatSessionExportPayload = {
+				type: CHAT_EXPORT_PAYLOAD_TYPE,
+				version: CHAT_EXPORT_PAYLOAD_VERSION,
+				exportedAt: new Date().toISOString(),
+				...(this.plugin.manifest?.version
+					? { sourcePluginVersion: this.plugin.manifest.version }
+					: {}),
+				session: cloneSession(session),
+			}
+			const baseName = `${createTimestampSlug()}-${safeFilenamePart(
+				deriveTitle(session),
+			)}`
+			const path = await this.createUniqueVaultTextFile(
+				CHAT_EXPORTS_DIR,
+				baseName,
+				JSON.stringify(payload, null, '\t'),
+			)
+			new Notice(i18n.t('chatbox.sessionExported', { path }))
+			return path
+		} catch (error) {
+			const normalized =
+				error instanceof Error ? error : new Error(getErrorMessage(error))
+			logger.error(normalized)
+			new Notice(
+				i18n.t('chatbox.errors.exportSessionFailed', {
+					message: normalized.message,
+				}),
+			)
+			throw normalized
+		}
+	}
+
+	async importSessionFile(file: File) {
+		await this.initialize()
+		try {
+			const text = await file.text()
+			const session = this.createImportedSessionFromText(text)
+			this.loadedSessions.set(session.id, session)
+			this.activeSessionId = session.id
+			this.upsertSessionIndexItem(session, deriveTitle(session), true)
+			this.getRuntime(session.id)
+			await this.persistSession(session)
+			await this.persistMetaAndIndex()
+			this.notify()
+			new Notice(
+				i18n.t('chatbox.sessionImported', { title: deriveTitle(session) }),
+			)
+			return session
+		} catch (error) {
+			const normalized =
+				error instanceof Error ? error : new Error(getErrorMessage(error))
+			logger.error(normalized)
+			new Notice(
+				i18n.t('chatbox.errors.importSessionFailed', {
+					message: normalized.message,
+				}),
+			)
+			throw normalized
+		}
 	}
 
 	selectProvider(providerId: string) {
@@ -1199,6 +1328,96 @@ export default class ChatService {
 		}
 	}
 
+	private createImportedSessionFromText(text: string) {
+		let parsed: unknown
+		try {
+			parsed = JSON.parse(text)
+		} catch {
+			throw new Error(i18n.t('chatbox.errors.invalidSessionImport'))
+		}
+
+		const source = readImportedSessionPayload(parsed)
+		if (!source) {
+			throw new Error(i18n.t('chatbox.errors.invalidSessionImport'))
+		}
+
+		return this.createImportedSession(source)
+	}
+
+	private createImportedSession(source: AISession): AISession {
+		const normalized = this.normalizeSession(source)
+		const now = Date.now()
+		const sessionId = createId('session')
+		const fragmentIdBySourceId = new Map(
+			normalized.fragments.map((fragment) => [
+				fragment.id,
+				createId('fragment'),
+			]),
+		)
+		const taskIdBySourceId = new Map(
+			normalized.tasks.map((task) => [task.id, createId('task')]),
+		)
+		const fragments = normalized.fragments.map((fragment) => ({
+			...fragment,
+			id: fragmentIdBySourceId.get(fragment.id) || createId('fragment'),
+			messages: fragment.messages.map((message) => ({
+				...cloneMessageRecord(message),
+				id: createId('message'),
+			})),
+		}))
+		const imported: AISession = {
+			...normalized,
+			id: sessionId,
+			createdAt: now,
+			updatedAt: now,
+			model: normalized.model ? { ...normalized.model } : undefined,
+			inferenceParams: normalized.inferenceParams
+				? { ...normalized.inferenceParams }
+				: undefined,
+			fragments,
+			activeFragmentId:
+				fragmentIdBySourceId.get(normalized.activeFragmentId) ||
+				fragments[fragments.length - 1].id,
+			tasks: normalized.tasks.map((task) =>
+				this.cloneImportedTask(task, sessionId, taskIdBySourceId, now),
+			),
+			permissions: normalized.permissions
+				? {
+						allow: normalized.permissions.allow.map((item) => ({ ...item })),
+					}
+				: undefined,
+		}
+		this.sanitizeSessionSelection(imported)
+		return imported
+	}
+
+	private cloneImportedTask(
+		task: AITaskRecord,
+		sessionId: string,
+		taskIdBySourceId: Map<string, string>,
+		now: number,
+	): AITaskRecord {
+		const cloned = {
+			...task,
+			id: taskIdBySourceId.get(task.id) || createId('task'),
+			sessionId,
+			parentTaskId: task.parentTaskId
+				? taskIdBySourceId.get(task.parentTaskId)
+				: undefined,
+		}
+		if (cloned.status !== 'queued' && cloned.status !== 'running') {
+			return cloned
+		}
+		return toCancelledTask(
+			cloned as QueuedChatTask | RunningChatTask,
+			IMPORTED_TASK_CANCEL_REASON,
+			now,
+			i18n.t('chatbox.task.importedCancelledSummary', {
+				task: cloned.title,
+			}),
+		)
+	}
+
 	private normalizeSession(session: AISession): AISession {
 		const normalized: AISession = {
 			id: session.id,
@@ -1269,6 +1488,20 @@ export default class ChatService {
 			tasks: Array.isArray(session.tasks)
 				? session.tasks.map((task) => ({ ...task }))
 				: [],
+			permissions: session.permissions
+				? {
+						allow: Array.isArray(session.permissions.allow)
+							? session.permissions.allow
+									.filter(
+										(item) =>
+											!!item &&
+											typeof item.operation === 'string' &&
+											typeof item.path === 'string',
+									)
+									.map((item) => ({ ...item }))
+							: [],
+					}
+				: undefined,
 		}
 
 		if (
@@ -2375,14 +2608,45 @@ export default class ChatService {
 		if (!path) {
 			return
 		}
-		const target = this.plugin.app.vault.getAbstractFileByPath(path)
+		const normalizedPath = normalizePath(path)
+		const target = this.plugin.app.vault.getAbstractFileByPath(normalizedPath)
 		if (target) {
 			if (isVaultFolder(target)) {
 				return
 			}
-			throw new Error(`Unable to restore ${path}: a file already exists there.`)
+			throw new Error(
+				`Unable to restore ${normalizedPath}: a file already exists there.`,
+			)
 		}
-		await this.plugin.app.vault.createFolder(path)
+		await mkdirsVault(this.plugin.app.vault, normalizedPath)
+	}
+
+	private async vaultPathExists(path: string) {
+		const normalizedPath = normalizePath(path)
+		if (this.plugin.app.vault.getAbstractFileByPath(normalizedPath)) {
+			return true
+		}
+		const adapter = this.plugin.app.vault.adapter as
+			| { exists?: (path: string) => Promise<boolean> }
+			| undefined
+		return typeof adapter?.exists === 'function'
+			? await adapter.exists(normalizedPath)
+			: false
+	}
+
+	private async createUniqueVaultTextFile(
+		directory: string,
+		baseName: string,
+		content: string,
+	) {
+		let path = normalizePath(`${directory}/${baseName}.json`)
+		let suffix = 1
+		while (await this.vaultPathExists(path)) {
+			path = normalizePath(`${directory}/${baseName}-${suffix}.json`)
+			suffix += 1
+		}
+		await this.plugin.app.vault.create(path, content)
+		return path
 	}
 
 	private getVaultResourceUrl(path: string, target?: unknown) {

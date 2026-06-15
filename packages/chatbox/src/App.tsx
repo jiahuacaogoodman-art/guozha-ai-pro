@@ -55,6 +55,7 @@ function App(props: AppProps) {
 	const [maxTokensInput, setMaxTokensInput] = createSignal('1200')
 	let messagesEl: HTMLDivElement | undefined
 	let fileInputEl: HTMLInputElement | undefined
+	let importInputEl: HTMLInputElement | undefined
 	let splitLayoutEl: HTMLDivElement | undefined
 	let inputPaneEl: HTMLDivElement | undefined
 	let historyEl: HTMLDivElement | undefined
@@ -428,6 +429,20 @@ function App(props: AppProps) {
 		await doRecallMessage(item)
 	}
 
+	async function importSessionFile(file: File) {
+		await props.onImportSession?.(file)
+		setHistoryOpen(false)
+	}
+
+	function onImportSessionChange(event: Event) {
+		const inputEl = event.currentTarget as HTMLInputElement
+		const file = inputEl.files?.[0]
+		inputEl.value = ''
+		if (file) {
+			void importSessionFile(file)
+		}
+	}
+
 	function confirmRegenerateMessage() {
 		const item = pendingRegenerateMessage()
 		if (!item) return
@@ -674,16 +689,39 @@ function App(props: AppProps) {
 											{t('history')}
 										</div>
 									</div>
-									<button
-										class="rounded-2 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)] px-3 py-2 text-sm hover:bg-[var(--background-modifier-hover)]"
-										type="button"
-										onClick={() => {
-											props.onNewSession()
-											setHistoryOpen(false)
-										}}
-									>
-										{t('newChat')}
-									</button>
+									<div class="flex shrink-0 items-center gap-2">
+										<Show when={props.onImportSession}>
+											<button
+												class="rounded-2 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)] px-3 py-2 text-sm hover:bg-[var(--background-modifier-hover)]"
+												type="button"
+												onClick={() => importInputEl?.click()}
+											>
+												{t('importSession')}
+											</button>
+										</Show>
+										<Show when={props.onExportSession && props.activeSessionId}>
+											<button
+												class="rounded-2 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)] px-3 py-2 text-sm hover:bg-[var(--background-modifier-hover)]"
+												type="button"
+												onClick={() => {
+													void props.onExportSession?.()
+													setHistoryOpen(false)
+												}}
+											>
+												{t('exportSession')}
+											</button>
+										</Show>
+										<button
+											class="rounded-2 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)] px-3 py-2 text-sm hover:bg-[var(--background-modifier-hover)]"
+											type="button"
+											onClick={() => {
+												props.onNewSession()
+												setHistoryOpen(false)
+											}}
+										>
+											{t('newChat')}
+										</button>
+									</div>
 								</div>
 							</div>
 							<div class="max-h-80 overflow-auto p-3 scrollbar-default">
@@ -803,6 +841,13 @@ function App(props: AppProps) {
 								}
 								event.currentTarget.value = ''
 							}}
+						/>
+						<input
+							ref={importInputEl}
+							class="hidden"
+							type="file"
+							accept="application/json,.json"
+							onChange={onImportSessionChange}
 						/>
 						<Show when={attachments().length > 0}>
 							<div class="mb-2 flex shrink-0 gap-2 overflow-x-auto pb-1 scrollbar-default">
