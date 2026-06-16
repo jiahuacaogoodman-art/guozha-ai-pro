@@ -1000,7 +1000,20 @@ function App(props: AppProps) {
 								}
 								onClick={() => void submit()}
 							>
-								<span aria-hidden="true" class="chatbox-send-arrow" />
+								<svg
+									class="chatbox-send-icon"
+									aria-hidden="true"
+									viewBox="0 0 24 24"
+									fill="none"
+								>
+									<path
+										d="M12 19V5M12 5L6 11M12 5L18 11"
+										stroke="currentColor"
+										stroke-width="2.6"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									/>
+								</svg>
 							</button>
 						</div>
 					</div>
