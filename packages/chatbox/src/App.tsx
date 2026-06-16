@@ -1000,7 +1000,7 @@ function App(props: AppProps) {
 								}
 								onClick={() => void submit()}
 							>
-								↑
+								<span aria-hidden="true" class="chatbox-send-arrow" />
 							</button>
 						</div>
 					</div>
