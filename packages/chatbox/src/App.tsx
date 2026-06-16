@@ -32,6 +32,8 @@ const DESKTOP_INPUT_ABSOLUTE_MIN_HEIGHT = 72
 const DESKTOP_MESSAGES_MIN_HEIGHT = 200
 const RESIZER_HITBOX_HEIGHT = 10
 const DESKTOP_INPUT_MAX_VIEWPORT_RATIO = 0.6
+const COMPACT_INPUT_MIN_HEIGHT = 40
+const COMPACT_INPUT_MAX_HEIGHT = 144
 
 function App(props: AppProps) {
 	const [input, setInput] = createSignal('')
@@ -40,6 +42,7 @@ function App(props: AppProps) {
 	const [historyOpen, setHistoryOpen] = createSignal(false)
 	const [tasksOpen, setTasksOpen] = createSignal(false)
 	const [modelPickerOpen, setModelPickerOpen] = createSignal(false)
+	const [commandMenuOpen, setCommandMenuOpen] = createSignal(false)
 	const [sessionPendingDeleteId, setSessionPendingDeleteId] =
 		createSignal<string>()
 	const [historyQuery, setHistoryQuery] = createSignal('')
@@ -56,10 +59,12 @@ function App(props: AppProps) {
 	let messagesEl: HTMLDivElement | undefined
 	let fileInputEl: HTMLInputElement | undefined
 	let importInputEl: HTMLInputElement | undefined
+	let messageInputEl: HTMLTextAreaElement | undefined
 	let splitLayoutEl: HTMLDivElement | undefined
 	let inputPaneEl: HTMLDivElement | undefined
 	let historyEl: HTMLDivElement | undefined
 	let modelPickerEl: HTMLDivElement | undefined
+	let commandMenuEl: HTMLDivElement | undefined
 	let previousActiveSessionId = props.activeSessionId
 	let defaultDesktopInputHeight = DEFAULT_DESKTOP_INPUT_HEIGHT
 	let dragStartHeight = 0
@@ -75,6 +80,7 @@ function App(props: AppProps) {
 	const canAttachImages = () => !!props.selectedModelSupportsImages
 	const currentTemperature = () => props.inferenceParams?.temperature ?? 0.7
 	const currentMaxTokens = () => props.inferenceParams?.maxTokens ?? 1200
+	const isSlashCommandInput = () => input().trim() === '/'
 	const selectedProvider = () =>
 		props.providers.find((provider) => provider.id === props.selectedProviderId)
 	const filteredSessionHistory = () => {
@@ -131,6 +137,58 @@ function App(props: AppProps) {
 		applyInputPaneHeight(defaultDesktopInputHeight)
 	}
 
+	function syncMessageInputHeight() {
+		if (!messageInputEl) {
+			return
+		}
+		if (desktopResizeEnabled()) {
+			messageInputEl.style.height = ''
+			messageInputEl.style.overflowY = ''
+			return
+		}
+		messageInputEl.style.height = 'auto'
+		const nextHeight = Math.min(
+			Math.max(messageInputEl.scrollHeight, COMPACT_INPUT_MIN_HEIGHT),
+			COMPACT_INPUT_MAX_HEIGHT,
+		)
+		messageInputEl.style.height = `${nextHeight}px`
+		messageInputEl.style.overflowY =
+			messageInputEl.scrollHeight > COMPACT_INPUT_MAX_HEIGHT ? 'auto' : 'hidden'
+	}
+
+	function clearSlashCommandInput() {
+		if (isSlashCommandInput()) {
+			setInput('')
+		}
+	}
+
+	function chooseAttachImage() {
+		if (!canAttachImages()) {
+			return
+		}
+		clearSlashCommandInput()
+		setCommandMenuOpen(false)
+		fileInputEl?.click()
+	}
+
+	function chooseNewFragment() {
+		if (!props.canCreateFragment) {
+			return
+		}
+		clearSlashCommandInput()
+		setCommandMenuOpen(false)
+		props.onNewFragment()
+	}
+
+	function chooseCompressContext() {
+		if (!props.canCompress) {
+			return
+		}
+		clearSlashCommandInput()
+		setCommandMenuOpen(false)
+		void props.onCompressContext()
+	}
+
 	function onInputPaneResizeStart() {
 		if (!desktopResizeEnabled()) {
 			return
@@ -183,7 +241,7 @@ function App(props: AppProps) {
 	})
 
 	createEffect(() => {
-		if (!historyOpen() && !modelPickerOpen()) {
+		if (!historyOpen() && !modelPickerOpen() && !commandMenuOpen()) {
 			return
 		}
 
@@ -194,11 +252,16 @@ function App(props: AppProps) {
 			if (!(target instanceof ownerWindow.Node)) {
 				return
 			}
-			if (historyEl?.contains(target) || modelPickerEl?.contains(target)) {
+			if (
+				historyEl?.contains(target) ||
+				modelPickerEl?.contains(target) ||
+				commandMenuEl?.contains(target)
+			) {
 				return
 			}
 			setHistoryOpen(false)
 			setModelPickerOpen(false)
+			setCommandMenuOpen(false)
 		}
 
 		const ownerDocument = activeDocument()
@@ -258,6 +321,12 @@ function App(props: AppProps) {
 		setMaxTokensInput(String(currentMaxTokens()))
 	})
 
+	createEffect(() => {
+		input()
+		desktopResizeEnabled()
+		window.requestAnimationFrame(syncMessageInputHeight)
+	})
+
 	function updateInferenceParams(next: {
 		temperature?: number
 		maxTokens?: number
@@ -274,12 +343,17 @@ function App(props: AppProps) {
 
 	async function submit() {
 		const text = input().trim()
+		if (text === '/') {
+			setCommandMenuOpen(true)
+			return
+		}
 		const selectedAttachments = canAttachImages() ? attachments() : []
 		if ((!text && selectedAttachments.length === 0) || !props.canSend) {
 			return
 		}
 		setInput('')
 		setAttachments([])
+		setCommandMenuOpen(false)
 		scrollMessagesToBottom('auto')
 		await props.onSendMessage({
 			text,
@@ -831,10 +905,10 @@ function App(props: AppProps) {
 							onChange={onImportSessionChange}
 						/>
 						<Show when={attachments().length > 0}>
-							<div class="mb-2 flex shrink-0 gap-2 overflow-x-auto pb-1 scrollbar-default">
+							<div class="chatbox-attachments mb-2 flex shrink-0 gap-2 overflow-x-auto pb-1 scrollbar-default">
 								<For each={attachments()}>
 									{(attachment) => (
-										<div class="relative h-16 w-16 shrink-0 overflow-hidden rounded-2 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)]">
+										<div class="chatbox-attachment-preview relative h-16 w-16 shrink-0 overflow-hidden rounded-2 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)]">
 											<img
 												class="h-full w-full object-cover"
 												src={attachment.url}
@@ -854,10 +928,16 @@ function App(props: AppProps) {
 							</div>
 						</Show>
 						<textarea
+							ref={messageInputEl}
 							class="chatbox-input w-full resize-none rounded-3 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)] text-sm outline-none"
 							placeholder={t('inputPlaceholder')}
 							value={input()}
-							onInput={(event) => setInput(event.currentTarget.value)}
+							rows={1}
+							onInput={(event) => {
+								const nextInput = event.currentTarget.value
+								setInput(nextInput)
+								setCommandMenuOpen(nextInput.trim() === '/')
+							}}
 							onCompositionStart={() => setIsComposing(true)}
 							onCompositionEnd={() => setIsComposing(false)}
 							onKeyDown={(event) => {
@@ -872,42 +952,64 @@ function App(props: AppProps) {
 								}
 							}}
 						/>
-						<div class="mt-3 flex items-center justify-between gap-3">
-							<div class="flex flex-wrap items-center gap-2">
+						<div class="chatbox-input-actions mt-2 flex items-center justify-between gap-2">
+							<div ref={commandMenuEl} class="chatbox-command-wrap relative">
 								<button
-									class="chatbox-tag-button"
+									class={`chatbox-command-trigger ${
+										commandMenuOpen() ? 'is-active' : ''
+									}`}
 									type="button"
-									disabled={!canAttachImages()}
-									title={
-										canAttachImages()
-											? t('attachImage')
-											: t('imageInputUnsupported')
-									}
-									onClick={() => fileInputEl?.click()}
+									title={t('moreActions')}
+									aria-label={t('moreActions')}
+									aria-expanded={commandMenuOpen()}
+									onClick={() => setCommandMenuOpen((open) => !open)}
 								>
-									{t('attachImage')}
+									/
 								</button>
-								<button
-									class="chatbox-tag-button"
-									type="button"
-									disabled={!props.canCreateFragment}
-									onClick={() => props.onNewFragment()}
-								>
-									{t('newFragment')}
-								</button>
-								<button
-									class="chatbox-tag-button"
-									type="button"
-									disabled={!props.canCompress}
-									onClick={() => void props.onCompressContext()}
-								>
-									{t('compressContext')}
-								</button>
+								<Show when={commandMenuOpen()}>
+									<div class="chatbox-command-menu">
+										<button
+											class="chatbox-command-item"
+											type="button"
+											disabled={!canAttachImages()}
+											title={
+												canAttachImages()
+													? t('attachImage')
+													: t('imageInputUnsupported')
+											}
+											onClick={chooseAttachImage}
+										>
+											<span class="chatbox-command-icon">+</span>
+											<span>{t('attachImage')}</span>
+										</button>
+										<button
+											class="chatbox-command-item"
+											type="button"
+											disabled={!props.canCreateFragment}
+											onClick={chooseNewFragment}
+										>
+											<span class="chatbox-command-icon">#</span>
+											<span>{t('newFragment')}</span>
+										</button>
+										<button
+											class="chatbox-command-item"
+											type="button"
+											disabled={!props.canCompress}
+											onClick={chooseCompressContext}
+										>
+											<span class="chatbox-command-icon">~</span>
+											<span>{t('compressContext')}</span>
+										</button>
+									</div>
+								</Show>
 							</div>
 							<button
-								class="mod-cta"
+								class="chatbox-send-button mod-cta"
 								type="button"
-								disabled={!input().trim() && attachments().length === 0}
+								disabled={
+									(!input().trim() && attachments().length === 0) ||
+									isSlashCommandInput()
+								}
 								onClick={() => void submit()}
 							>
 								{isBusy() ? t('queueSend') : t('send')}
