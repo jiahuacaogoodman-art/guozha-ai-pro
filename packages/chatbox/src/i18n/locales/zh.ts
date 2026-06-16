@@ -33,7 +33,6 @@ const zh = {
 	lengthShort: '简短',
 	lengthMedium: '标准',
 	lengthLong: '详细',
-	moreActions: '更多功能',
 	newFragment: '新建段',
 	compressContext: '压缩上下文',
 	pendingMessages: '挂起消息',

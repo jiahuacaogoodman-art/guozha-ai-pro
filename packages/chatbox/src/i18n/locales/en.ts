@@ -35,7 +35,6 @@ const en = {
 	lengthShort: 'Short',
 	lengthMedium: 'Standard',
 	lengthLong: 'Detailed',
-	moreActions: 'More actions',
 	newFragment: 'New Fragment',
 	compressContext: 'Compress Context',
 	pendingMessages: 'Pending Messages',

@@ -32,8 +32,8 @@ const DESKTOP_INPUT_ABSOLUTE_MIN_HEIGHT = 72
 const DESKTOP_MESSAGES_MIN_HEIGHT = 200
 const RESIZER_HITBOX_HEIGHT = 10
 const DESKTOP_INPUT_MAX_VIEWPORT_RATIO = 0.6
-const COMPACT_INPUT_MIN_HEIGHT = 40
-const COMPACT_INPUT_MAX_HEIGHT = 144
+const COMPACT_INPUT_MIN_HEIGHT = 36
+const COMPACT_INPUT_MAX_HEIGHT = 120
 
 function App(props: AppProps) {
 	const [input, setInput] = createSignal('')
@@ -927,92 +927,80 @@ function App(props: AppProps) {
 								</For>
 							</div>
 						</Show>
-						<textarea
-							ref={messageInputEl}
-							class="chatbox-input w-full resize-none rounded-3 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)] text-sm outline-none"
-							placeholder={t('inputPlaceholder')}
-							value={input()}
-							rows={1}
-							onInput={(event) => {
-								const nextInput = event.currentTarget.value
-								setInput(nextInput)
-								setCommandMenuOpen(nextInput.trim() === '/')
-							}}
-							onCompositionStart={() => setIsComposing(true)}
-							onCompositionEnd={() => setIsComposing(false)}
-							onKeyDown={(event) => {
-								if (
-									event.key === 'Enter' &&
-									!event.shiftKey &&
-									!isComposing() &&
-									!event.isComposing
-								) {
-									event.preventDefault()
-									void submit()
-								}
-							}}
-						/>
-						<div class="chatbox-input-actions mt-2 flex items-center justify-between gap-2">
-							<div ref={commandMenuEl} class="chatbox-command-wrap relative">
-								<button
-									class={`chatbox-command-trigger ${
-										commandMenuOpen() ? 'is-active' : ''
-									}`}
-									type="button"
-									title={t('moreActions')}
-									aria-label={t('moreActions')}
-									aria-expanded={commandMenuOpen()}
-									onClick={() => setCommandMenuOpen((open) => !open)}
-								>
-									/
-								</button>
-								<Show when={commandMenuOpen()}>
-									<div class="chatbox-command-menu">
-										<button
-											class="chatbox-command-item"
-											type="button"
-											disabled={!canAttachImages()}
-											title={
-												canAttachImages()
-													? t('attachImage')
-													: t('imageInputUnsupported')
-											}
-											onClick={chooseAttachImage}
-										>
-											<span class="chatbox-command-icon">+</span>
-											<span>{t('attachImage')}</span>
-										</button>
-										<button
-											class="chatbox-command-item"
-											type="button"
-											disabled={!props.canCreateFragment}
-											onClick={chooseNewFragment}
-										>
-											<span class="chatbox-command-icon">#</span>
-											<span>{t('newFragment')}</span>
-										</button>
-										<button
-											class="chatbox-command-item"
-											type="button"
-											disabled={!props.canCompress}
-											onClick={chooseCompressContext}
-										>
-											<span class="chatbox-command-icon">~</span>
-											<span>{t('compressContext')}</span>
-										</button>
-									</div>
-								</Show>
-							</div>
+						<div ref={commandMenuEl} class="chatbox-composer">
+							<textarea
+								ref={messageInputEl}
+								class="chatbox-input chatbox-composer-input w-full resize-none rounded-3 border border-[var(--background-modifier-border)] bg-[var(--background-primary-alt)] text-sm outline-none"
+								placeholder={t('inputPlaceholder')}
+								value={input()}
+								rows={1}
+								onInput={(event) => {
+									const nextInput = event.currentTarget.value
+									setInput(nextInput)
+									setCommandMenuOpen(nextInput.trim() === '/')
+								}}
+								onCompositionStart={() => setIsComposing(true)}
+								onCompositionEnd={() => setIsComposing(false)}
+								onKeyDown={(event) => {
+									if (
+										event.key === 'Enter' &&
+										!event.shiftKey &&
+										!isComposing() &&
+										!event.isComposing
+									) {
+										event.preventDefault()
+										void submit()
+									}
+								}}
+							/>
+							<Show when={commandMenuOpen()}>
+								<div class="chatbox-command-menu">
+									<button
+										class="chatbox-command-item"
+										type="button"
+										disabled={!canAttachImages()}
+										title={
+											canAttachImages()
+												? t('attachImage')
+												: t('imageInputUnsupported')
+										}
+										onClick={chooseAttachImage}
+									>
+										<span class="chatbox-command-icon">+</span>
+										<span>{t('attachImage')}</span>
+									</button>
+									<button
+										class="chatbox-command-item"
+										type="button"
+										disabled={!props.canCreateFragment}
+										onClick={chooseNewFragment}
+									>
+										<span class="chatbox-command-icon">#</span>
+										<span>{t('newFragment')}</span>
+									</button>
+									<button
+										class="chatbox-command-item"
+										type="button"
+										disabled={!props.canCompress}
+										onClick={chooseCompressContext}
+									>
+										<span class="chatbox-command-icon">~</span>
+										<span>{t('compressContext')}</span>
+									</button>
+								</div>
+							</Show>
 							<button
 								class="chatbox-send-button mod-cta"
 								type="button"
+								title={isBusy() ? t('queueSend') : t('send')}
+								aria-label={isBusy() ? t('queueSend') : t('send')}
 								disabled={
 									(!input().trim() && attachments().length === 0) ||
 									isSlashCommandInput()
 								}
 								onClick={() => void submit()}
 							>
-								{isBusy() ? t('queueSend') : t('send')}
+								↑
 							</button>
 						</div>
 					</div>
