@@ -7,6 +7,7 @@ import process from 'process'
 
 const pkgJson = JSON.parse(readFileSync('./package.json', 'utf-8'))
 const defaultDavEndpoint = 'https://dav.jianguoyun.com/dav'
+const defaultNsDavEndpoint = 'https://www.jianguoyun.com/dav'
 
 const prod = process.argv[2] === 'production'
 
@@ -60,7 +61,7 @@ const context = await esbuild.context({
 	],
 	define: {
 		'process.env.NS_NSDAV_ENDPOINT': JSON.stringify(
-			process.env.NS_NSDAV_ENDPOINT || defaultDavEndpoint,
+			process.env.NS_NSDAV_ENDPOINT || defaultNsDavEndpoint,
 		),
 		'process.env.NS_DAV_ENDPOINT': JSON.stringify(
 			process.env.NS_DAV_ENDPOINT || defaultDavEndpoint,

@@ -1,7 +1,7 @@
 {
 	"id": "guozha-ai-pro",
 	"name": "Guozha AI Pro",
-	"version": "1.2.20",
+	"version": "1.2.21",
 	"minAppVersion": "1.7.2",
 	"description": "Flexible AI chat with free WebDAV cloud sync powered by Nutstore.",
 	"author": "jiahuacaogoodman-art",

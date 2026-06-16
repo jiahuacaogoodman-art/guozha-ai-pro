@@ -1,7 +1,7 @@
 import { Platform, requireApiVersion } from 'obsidian'
 
 export const DEFAULT_NS_DAV_ENDPOINT = 'https://dav.jianguoyun.com/dav'
-export const DEFAULT_NS_NSDAV_ENDPOINT = DEFAULT_NS_DAV_ENDPOINT
+export const DEFAULT_NS_NSDAV_ENDPOINT = 'https://www.jianguoyun.com/dav'
 
 export const NS_NSDAV_ENDPOINT =
 	process.env.NS_NSDAV_ENDPOINT || DEFAULT_NS_NSDAV_ENDPOINT
