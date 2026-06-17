@@ -6,6 +6,12 @@ import './assets/styles/global.css'
 import { toBase64 } from 'js-base64'
 import { normalizePath, Notice, ObsidianProtocolData, Plugin } from 'obsidian'
 import { sanitizeDefaultSelections, sanitizeProviders } from './ai/config'
+import {
+	createMCPServerConfig,
+	createMCPToken,
+	DEFAULT_MCP_PORT,
+	normalizeMCPPort,
+} from './ai/mcp'
 import { SyncRibbonManager } from './components/SyncRibbonManager'
 import { emitCancelSync } from './events'
 import { emitSsoReceive } from './events/sso-receive'
@@ -15,6 +21,7 @@ import CommandService from './services/command.service'
 import EventsService from './services/events.service'
 import I18nService from './services/i18n.service'
 import LoggerService from './services/logger.service'
+import MCPServerService from './services/mcp-server.service'
 import { ProgressService } from './services/progress.service'
 import RealtimeSyncService from './services/realtime-sync.service'
 import ScheduledSyncService from './services/scheduled-sync.service'
@@ -43,6 +50,7 @@ export default class NutstorePlugin extends Plugin {
 	public eventsService = new EventsService(this)
 	public i18nService = new I18nService(this)
 	public loggerService = new LoggerService(this)
+	public mcpServerService = new MCPServerService(this)
 	public progressService = new ProgressService(this)
 	public ribbonManager = new SyncRibbonManager(this)
 	public statusService = new StatusService(this)
@@ -69,6 +77,7 @@ export default class NutstorePlugin extends Plugin {
 		}
 		setPluginInstance(this)
 		await this.chatService.handleSettingsChanged()
+		await this.mcpServerService.refresh()
 
 		await this.scheduledSyncService.start()
 	}
@@ -102,6 +111,7 @@ export default class NutstorePlugin extends Plugin {
 		this.eventsService.unload()
 		this.realtimeSyncService.unload()
 		this.statusService.unload()
+		this.mcpServerService.unload()
 	}
 
 	async loadSettings() {
@@ -158,6 +168,14 @@ export default class NutstorePlugin extends Plugin {
 				providers: {},
 				defaultModel: undefined,
 				yolo: false,
+				mcpServers: [],
+				mcpServer: {
+					enabled: false,
+					port: DEFAULT_MCP_PORT,
+					authMode: 'open',
+					nodeCommand: 'node',
+					token: createMCPToken(),
+				},
 			},
 			configDirSyncMode: 'none',
 		}
@@ -165,6 +183,16 @@ export default class NutstorePlugin extends Plugin {
 		const loadedSettings = (await this.loadData()) as Partial<NutstoreSettings>
 		this.settings = { ...DEFAULT_SETTINGS, ...loadedSettings }
 		this.settings.ai ??= { providers: {}, defaultModel: undefined, yolo: false }
+		this.settings.ai.mcpServers = (this.settings.ai.mcpServers || []).map(
+			(server) => createMCPServerConfig(server),
+		)
+		this.settings.ai.mcpServer = {
+			enabled: this.settings.ai.mcpServer?.enabled ?? false,
+			port: normalizeMCPPort(this.settings.ai.mcpServer?.port),
+			authMode: this.settings.ai.mcpServer?.authMode || 'open',
+			nodeCommand: this.settings.ai.mcpServer?.nodeCommand || 'node',
+			token: this.settings.ai.mcpServer?.token || createMCPToken(),
+		}
 		if (Array.isArray(this.settings.ai.providers)) {
 			this.settings.ai.providers = {}
 		}
@@ -196,6 +224,7 @@ export default class NutstorePlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings)
 		await this.chatService.handleSettingsChanged()
+		await this.mcpServerService.refresh()
 	}
 
 	toggleSyncUI(isSyncing: boolean) {

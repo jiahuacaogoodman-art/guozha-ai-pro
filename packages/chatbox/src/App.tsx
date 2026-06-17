@@ -32,7 +32,7 @@ const DESKTOP_INPUT_ABSOLUTE_MIN_HEIGHT = 72
 const DESKTOP_MESSAGES_MIN_HEIGHT = 200
 const RESIZER_HITBOX_HEIGHT = 10
 const DESKTOP_INPUT_MAX_VIEWPORT_RATIO = 0.6
-const COMPACT_INPUT_MIN_HEIGHT = 36
+const COMPACT_INPUT_MIN_HEIGHT = 34
 const COMPACT_INPUT_MAX_HEIGHT = 120
 
 function App(props: AppProps) {
@@ -1009,7 +1009,7 @@ function App(props: AppProps) {
 									<path
 										d="M12 19V5M12 5L6 11M12 5L18 11"
 										stroke="currentColor"
-										stroke-width="2.6"
+										stroke-width="2.5"
 										stroke-linecap="round"
 										stroke-linejoin="round"
 									/>

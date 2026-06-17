@@ -303,7 +303,7 @@ function toAISDKTools(tools: AIToolDefinition[]) {
 			toolDefinition.name,
 			aiTool({
 				description: toolDefinition.description,
-				inputSchema: toolDefinition.inputSchema,
+				inputSchema: toolDefinition.inputSchema as never,
 			}),
 		]),
 	)

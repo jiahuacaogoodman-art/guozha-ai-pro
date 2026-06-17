@@ -13,6 +13,7 @@ import {
 	generateAssistantTurn,
 	generateImageTurn,
 } from '~/ai/runtime'
+import { createMCPTools } from '~/ai/mcp'
 import {
 	REPEATED_TOOL_CALL_THRESHOLD,
 	ToolCallRepeatState,
@@ -1733,7 +1734,11 @@ export default class ChatService {
 				runtime.runState = 'thinking'
 				this.notify()
 
-				const tools = this.createToolsForContext(session, 0, MAX_TASK_DEPTH)
+				const tools = await this.createToolsForContext(
+					session,
+					0,
+					MAX_TASK_DEPTH,
+				)
 				const isImageModel = isImageGenerationModel(model)
 				const fragmentMessages = this.buildMessagesForFragment(
 					fragment,
@@ -2134,7 +2139,7 @@ export default class ChatService {
 		provider: AIProviderConfig,
 		model: { id: string },
 	): Promise<AgentRunResult> {
-		const tools = this.createToolsForContext(
+		const tools = await this.createToolsForContext(
 			session,
 			task.depth,
 			task.maxDepth,
@@ -2479,7 +2484,7 @@ export default class ChatService {
 		}
 	}
 
-	private createToolsForContext(
+	private async createToolsForContext(
 		session: AISession,
 		depth: number,
 		maxDepth: number,
@@ -2497,7 +2502,7 @@ export default class ChatService {
 				},
 			},
 		)
-		return createAITools(this.plugin.app, {
+		const localTools = createAITools(this.plugin.app, {
 			allowSpawn,
 			permissionGuard,
 			spawnTask: (params) =>
@@ -2512,6 +2517,13 @@ export default class ChatService {
 					async: true,
 				}),
 		})
+		let mcpTools: AIToolDefinition[] = []
+		try {
+			mcpTools = await createMCPTools(this.plugin.settings.ai.mcpServers)
+		} catch (error) {
+			logger.error('Failed to load MCP tools:', error)
+		}
+		return [...localTools, ...mcpTools]
 	}
 
 	private async executeToolCall(
@@ -2532,7 +2544,11 @@ export default class ChatService {
 				)
 			}
 			const parsedArgs = JSON.parse(args) as Record<string, unknown>
-			const params = tool.inputSchema.parse(parsedArgs)
+			const parser = tool.inputSchema as {
+				parse?: (value: unknown) => unknown
+			}
+			const params =
+				typeof parser.parse === 'function' ? parser.parse(parsedArgs) : parsedArgs
 			result = await tool.execute(params, context)
 		} catch (error) {
 			logger.error(error)
