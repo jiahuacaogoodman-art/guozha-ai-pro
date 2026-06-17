@@ -55,6 +55,7 @@ import {
 } from '~/chat/domain'
 import type {
 	ChatImageAttachment,
+	ChatInferenceParams,
 	ChatSendPayload,
 	ChatboxViewProps,
 	ChatProviderOption,
@@ -77,6 +78,8 @@ const CHAT_EXPORT_PAYLOAD_TYPE = 'guozha-ai-pro.chat-session'
 const CHAT_EXPORT_PAYLOAD_VERSION = 1
 const INTERRUPTED_TASK_CANCEL_REASON = 'interrupted_by_restart'
 const IMPORTED_TASK_CANCEL_REASON = 'imported_session'
+const INLINE_TOOL_MIN_MAX_TOKENS = 16000
+const INLINE_TOOL_RESULT_SUMMARY_LIMIT = 6000
 const COMPRESSION_PROMPT = [
 	'Summarize the conversation above for continuation in a fresh context.',
 	'Return a compact but information-dense handoff covering:',
@@ -89,6 +92,7 @@ const COMPRESSION_PROMPT = [
 ].join(' ')
 
 interface ResolvedToolResult {
+	name: string
 	payload: string | Record<string, unknown>
 	isError: boolean
 	reversibleOps?: AIMessageRecord['reversibleOps']
@@ -123,6 +127,31 @@ interface ChatSessionExportPayload {
 	session: AISession
 }
 
+export interface InlineAIRunMessage {
+	role: 'user' | 'assistant'
+	text: string
+	createdAt: number
+}
+
+export interface InlineAIRunRequest {
+	messages: InlineAIRunMessage[]
+	context?: {
+		filePath?: string
+		before?: string
+		after?: string
+		selection?: string
+	}
+	allowLongForm?: boolean
+	disableTools?: boolean
+	inferenceParams?: ChatInferenceParams
+	onTextDelta?: (delta: string, fullText: string) => void | Promise<void>
+}
+
+interface InlineRunResult {
+	text: string
+	toolUsed: boolean
+}
+
 function toTextParts(text: string): AIMessageContentPart[] {
 	return [{ type: 'text', text }]
 }
@@ -151,6 +180,62 @@ function messageToText(message: Pick<ChatMessage, 'content'> | AIMessage) {
 		)
 		.map((part) => part.text)
 		.join('\n')
+}
+
+export function normalizeInlineInferenceParams(
+	params: ChatInferenceParams | undefined,
+	options?: { allowLongForm?: boolean; modelMaxOutput?: number },
+): ChatInferenceParams | undefined {
+	if (!options?.allowLongForm) {
+		return params ? { ...params } : undefined
+	}
+	const modelMaxOutput =
+		typeof options.modelMaxOutput === 'number' &&
+		Number.isFinite(options.modelMaxOutput) &&
+		options.modelMaxOutput > 0
+			? options.modelMaxOutput
+			: undefined
+	const minimum = Math.max(
+		INLINE_TOOL_MIN_MAX_TOKENS,
+		modelMaxOutput || INLINE_TOOL_MIN_MAX_TOKENS,
+	)
+	const maxTokens =
+		typeof params?.maxTokens === 'number' && Number.isFinite(params.maxTokens)
+			? Math.max(params.maxTokens, minimum)
+			: minimum
+	return {
+		...(params || {}),
+		maxTokens,
+	}
+}
+
+function summarizeToolPayload(payload: string | Record<string, unknown>) {
+	const raw = typeof payload === 'string' ? payload : JSON.stringify(payload)
+	const compact = raw.replace(/\s+/g, ' ').trim()
+	if (!compact) {
+		return '无文本结果'
+	}
+	return compact.length > INLINE_TOOL_RESULT_SUMMARY_LIMIT
+		? `${compact.slice(0, INLINE_TOOL_RESULT_SUMMARY_LIMIT)}...`
+		: compact
+}
+
+function summarizeInlineToolRun(results: ResolvedToolResult[]) {
+	if (!results.length) {
+		return ''
+	}
+	const failed = results.filter((item) => item.isError)
+	const status = failed.length ? '工具执行后有错误' : '工具已执行'
+	const details = results
+		.slice(0, 4)
+		.map(
+			(item) =>
+				`${item.name}${item.isError ? ' 失败' : ' 完成'}：${summarizeToolPayload(item.payload)}`,
+		)
+		.join('；')
+	const more =
+		results.length > 4 ? `；另有 ${results.length - 4} 个工具结果` : ''
+	return `${status}。${details}${more}`
 }
 
 function stripAssistantImageParts(message: AIMessage): AIMessage {
@@ -410,6 +495,45 @@ function createMainSystemPrompt(maxDepth: number) {
 		createVaultToolGuidance(),
 		`Use the spawn tool only for large independent tasks that should run in the background. Maximum task depth is ${maxDepth}.`,
 	].join(' ')
+}
+
+function createInlineSystemPrompt(
+	context?: InlineAIRunRequest['context'],
+	options?: { allowLongForm?: boolean },
+) {
+	const isToolMode = Boolean(options?.allowLongForm)
+	const actionGuidance = options?.allowLongForm
+		? 'If the user asks you to change, read, create, delete, move, rename, search, format, test, build, publish, inspect, or write vault content, use the available tools. After using tools, report what you did, which files or notes were affected, and any remaining issue with enough detail to be useful. Do not shorten the result merely because this is inline.'
+		: 'If the user asks you to change, read, create, delete, move, rename, search, format, or write vault content, use the available tools and then report the concrete result briefly.'
+	const currentFileGuidance = context?.filePath
+		? `When the user says "current note", "current file", "this note", "this file", or gives an editing request without a path, operate on ${context.filePath}.`
+		: ''
+	const selectionGuidance = context?.selection
+		? 'When a current selection is provided and the user asks to rewrite, polish, translate, format, summarize, or otherwise edit "this", prefer operating on that selected text.'
+		: ''
+	return [
+		'You are Guozha, an inline AI writing partner inside an Obsidian editor.',
+		isToolMode
+			? 'Reply naturally in the user language. Tool-enabled requests are allowed to be as long as the task needs, especially when reporting file operations, test results, errors, or follow-up work.'
+			: 'Reply naturally and concisely in the user language.',
+		options?.allowLongForm
+			? 'Your answer is streamed directly into the current text line after "果札：". Do not artificially compress or shorten tool-related answers; be as detailed as the task requires while staying readable inline. You may include multiple short sentences. Avoid Markdown blocks, headings, lists, tables, and unnecessary line breaks unless the user explicitly asks for formatted output.'
+			: 'Your answer is streamed directly into the current text line after "果札：". Prefer one compact inline answer. Avoid Markdown blocks, headings, lists, tables, and unnecessary line breaks unless the user explicitly asks for formatted output.',
+		'Do not include speaker labels such as "果札：" or "你：" in your answer; the editor inserts those labels.',
+		actionGuidance,
+		currentFileGuidance,
+		selectionGuidance,
+		'The user is editing a note, so keep answers useful for writing, revision, file operations, and immediate Q&A.',
+		'When editing files through tools, preserve user content and avoid broad rewrites unless the user asks for them.',
+		context?.filePath ? `Current file: ${context.filePath}.` : '',
+		context?.selection ? `Current selection:\n${context.selection}` : '',
+		context?.before || context?.after
+			? `Nearby document context:\n${context?.before || ''}\n<<< cursor >>>\n${context?.after || ''}`
+			: '',
+		createVaultToolGuidance(),
+	]
+		.filter(Boolean)
+		.join('\n\n')
 }
 
 function createSubagentSystemPrompt(canSpawn: boolean) {
@@ -888,6 +1012,11 @@ export default class ChatService {
 		this.notify()
 	}
 
+	getActiveInferenceParams(): ChatInferenceParams | undefined {
+		const params = this.getLoadedActiveSession()?.inferenceParams
+		return params ? { ...params } : undefined
+	}
+
 	async sendMessage(payload: ChatSendPayload | string) {
 		await this.initialize()
 		const normalizedPayload =
@@ -935,6 +1064,80 @@ export default class ChatService {
 		await this.persistMetaAndIndex()
 		this.notify()
 		await this.startSessionProcessor(session.id)
+	}
+
+	async runInlineAI(request: InlineAIRunRequest): Promise<InlineRunResult> {
+		await this.initialize()
+		const { providerId, modelId } = this.getInitialSelectionForNewSession()
+		const session = this.createInlineSession(providerId, modelId)
+		const provider = this.getProviderOrThrow(session)
+		const model = this.getModelOrThrow(provider, session)
+		const tools = request.disableTools
+			? []
+			: await this.createToolsForContext(session, 0, MAX_TASK_DEPTH)
+		const inferenceParams = normalizeInlineInferenceParams(
+			request.inferenceParams,
+			{
+				allowLongForm: request.allowLongForm,
+				modelMaxOutput: model.limit.output,
+			},
+		)
+		const messages: AIMessage[] = [
+			{
+				role: 'system',
+				content: toTextParts(
+					createInlineSystemPrompt(request.context, {
+						allowLongForm: request.allowLongForm,
+					}),
+				),
+			},
+			...request.messages.map(
+				(message): AIMessage => ({
+					role: message.role,
+					content: toTextParts(message.text),
+				}),
+			),
+		]
+
+		const response = await generateAssistantTurn({
+			provider,
+			model: model.id,
+			messages,
+			tools,
+			disableTools: request.disableTools,
+			...(inferenceParams || {}),
+			onTextDelta: request.onTextDelta,
+		})
+		const toolCalls = getAssistantToolCalls(response.message)
+		if (toolCalls?.length) {
+			const toolMessages = await this.resolveToolCalls(toolCalls, tools, {
+				session,
+				depth: 0,
+				maxDepth: MAX_TASK_DEPTH,
+			})
+			const followUp = await generateAssistantTurn({
+				provider,
+				model: model.id,
+				messages: [
+					...messages,
+					response.message,
+					...toolMessages.map((item) => item.message),
+				],
+				tools,
+				disableTools: request.disableTools,
+				...(inferenceParams || {}),
+				onTextDelta: request.onTextDelta,
+			})
+			const finalText = messageToText(followUp.message).trim()
+			return {
+				text: finalText || summarizeInlineToolRun(toolMessages),
+				toolUsed: true,
+			}
+		}
+		return {
+			text: messageToText(response.message).trim(),
+			toolUsed: false,
+		}
 	}
 
 	createFragmentForActiveSession() {
@@ -2243,6 +2446,8 @@ export default class ChatService {
 				name: toolCall.function.name,
 				tool_call_id: toolCall.id,
 			},
+			name: results[index].name,
+			payload: results[index].payload,
 			isError: results[index].isError,
 			reversibleOps: results[index].reversibleOps,
 		}))
@@ -2259,6 +2464,7 @@ export default class ChatService {
 				context,
 			)
 			return {
+				name: toolCall.function.name,
 				payload,
 				isError: payload.status !== 'completed',
 			}
@@ -2271,6 +2477,7 @@ export default class ChatService {
 			context,
 		)
 		return {
+			name: toolCall.function.name,
 			payload: result.payload,
 			reversibleOps: result.reversibleOps,
 			isError: typeof result.payload === 'object' && !!result.payload.error,
@@ -2548,7 +2755,9 @@ export default class ChatService {
 				parse?: (value: unknown) => unknown
 			}
 			const params =
-				typeof parser.parse === 'function' ? parser.parse(parsedArgs) : parsedArgs
+				typeof parser.parse === 'function'
+					? parser.parse(parsedArgs)
+					: parsedArgs
 			result = await tool.execute(params, context)
 		} catch (error) {
 			logger.error(error)
@@ -3027,6 +3236,28 @@ export default class ChatService {
 
 		return {
 			id: createId('session'),
+			createdAt: now,
+			updatedAt: now,
+			model: providerId && modelId ? { providerId, modelId } : undefined,
+			fragments: [fragment],
+			activeFragmentId: fragment.id,
+			tasks: [],
+		}
+	}
+
+	private createInlineSession(
+		providerId?: string,
+		modelId?: string,
+	): AISession {
+		const now = Date.now()
+		const fragment: ChatFragment = {
+			id: createId('fragment'),
+			createdAt: now,
+			updatedAt: now,
+			messages: [],
+		}
+		return {
+			id: createId('inline'),
 			createdAt: now,
 			updatedAt: now,
 			model: providerId && modelId ? { providerId, modelId } : undefined,

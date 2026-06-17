@@ -4,7 +4,7 @@ import type {
 	ChatPendingMessage,
 	ChatSessionHistoryItem,
 } from '~/chatbox/types'
-import ChatService from './chat.service'
+import ChatService, { normalizeInlineInferenceParams } from './chat.service'
 
 const storageState = vi.hoisted(() => {
 	const sessionStore = new Map<string, any>()
@@ -58,6 +58,35 @@ vi.mock('~/storage', () => ({
 	chatSessionKV: storageState.chatSessionKV,
 	chatMetaKV: storageState.chatMetaKV,
 }))
+
+describe('inline inference params', () => {
+	it('keeps compact inline answers on the user configured budget', () => {
+		expect(
+			normalizeInlineInferenceParams(
+				{ temperature: 0.2, maxTokens: 600 },
+				{ allowLongForm: false, modelMaxOutput: 32000 },
+			),
+		).toEqual({ temperature: 0.2, maxTokens: 600 })
+	})
+
+	it('lifts tool-enabled inline answers to the larger model output budget', () => {
+		expect(
+			normalizeInlineInferenceParams(
+				{ temperature: 0.2, maxTokens: 600 },
+				{ allowLongForm: true, modelMaxOutput: 32000 },
+			),
+		).toEqual({ temperature: 0.2, maxTokens: 32000 })
+	})
+
+	it('keeps an explicit budget above the tool-mode floor', () => {
+		expect(
+			normalizeInlineInferenceParams(
+				{ maxTokens: 48000 },
+				{ allowLongForm: true, modelMaxOutput: 32000 },
+			),
+		).toEqual({ maxTokens: 48000 })
+	})
+})
 
 function createPlugin() {
 	return {
