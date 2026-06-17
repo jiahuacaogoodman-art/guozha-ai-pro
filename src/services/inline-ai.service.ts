@@ -52,6 +52,7 @@ interface InlineAIDecoration {
 	from: number
 	to: number
 	value: Decoration
+	side?: number
 }
 
 interface InlineAIPromptRange {
@@ -67,6 +68,21 @@ interface InlineAIPromptMatch {
 }
 
 type InlineHistoryDeleteKey = 'Backspace' | 'Delete'
+
+function activeDocument(view: EditorView) {
+	return view.dom.ownerDocument
+}
+
+function activeWindow(view: EditorView) {
+	return activeDocument(view).defaultView ?? window
+}
+
+function setElementStyles(
+	element: HTMLElement,
+	styles: Partial<CSSStyleDeclaration>,
+) {
+	element.setCssStyles(styles)
+}
 
 function createInlineId() {
 	return `inline-${Date.now().toString(36)}-${Math.random()
@@ -487,8 +503,8 @@ class InlineStreamCursorWidget extends WidgetType {
 		return other instanceof InlineStreamCursorWidget
 	}
 
-	toDOM() {
-		const cursor = document.createElement('span')
+	toDOM(view: EditorView) {
+		const cursor = activeDocument(view).createElement('span')
 		cursor.className = 'guozha-inline-ai-stream-cursor'
 		cursor.textContent = '▌'
 		return cursor
@@ -520,7 +536,7 @@ class InlineHistoryDotWidget extends WidgetType {
 	}
 
 	toDOM(view: EditorView) {
-		const button = document.createElement('button')
+		const button = activeDocument(view).createElement('button')
 		button.type = 'button'
 		button.className = 'guozha-inline-ai-history-dot'
 		button.textContent = '•'
@@ -664,7 +680,9 @@ class InlineAIViewPlugin {
 		anchor: HTMLElement,
 	) {
 		this.closeHistoryPopover()
-		const popover = document.createElement('div')
+		const ownerDocument = activeDocument(this.view)
+		const ownerWindow = activeWindow(this.view)
+		const popover = ownerDocument.createElement('div')
 		popover.className = 'guozha-inline-ai-history-popover'
 		popover.setAttribute('role', 'dialog')
 		popover.setAttribute('aria-label', '果札对话历史')
@@ -730,18 +748,25 @@ class InlineAIViewPlugin {
 			text: '复制历史',
 			attr: { type: 'button' },
 		})
-		copyButton.addEventListener('click', async () => {
+		copyButton.addEventListener('click', () => {
 			try {
-				if (!navigator.clipboard) {
+				if (!ownerWindow.navigator.clipboard) {
 					throw new Error('Clipboard unavailable')
 				}
-				await navigator.clipboard.writeText(payload.text)
-				copyButton.textContent = '已复制'
+				void ownerWindow.navigator.clipboard
+					.writeText(payload.text)
+					.then(() => {
+						copyButton.textContent = '已复制'
+					})
+					.catch((error: unknown) => {
+						logger.warn('Failed to copy inline AI history', error)
+						copyButton.textContent = '复制失败'
+					})
 			} catch (error) {
 				logger.warn('Failed to copy inline AI history', error)
 				copyButton.textContent = '复制失败'
 			}
-			window.setTimeout(() => {
+			ownerWindow.setTimeout(() => {
 				copyButton.textContent = '复制历史'
 			}, 1200)
 		})
@@ -754,7 +779,7 @@ class InlineAIViewPlugin {
 			this.deleteHistoryRange(from, to)
 		})
 
-		document.body.appendChild(popover)
+		ownerDocument.body.appendChild(popover)
 		this.historyPopover = popover
 		this.positionHistoryPopover(popover, anchor)
 
@@ -774,36 +799,41 @@ class InlineAIViewPlugin {
 			}
 		}
 		const handleReposition = () => this.positionHistoryPopover(popover, anchor)
-		window.addEventListener('pointerdown', handlePointerDown, true)
-		window.addEventListener('keydown', handleKeydown, true)
-		window.addEventListener('resize', handleReposition)
-		window.addEventListener('scroll', handleReposition, true)
+		ownerWindow.addEventListener('pointerdown', handlePointerDown, true)
+		ownerWindow.addEventListener('keydown', handleKeydown, true)
+		ownerWindow.addEventListener('resize', handleReposition)
+		ownerWindow.addEventListener('scroll', handleReposition, true)
 		this.historyPopoverCleanup = () => {
-			window.removeEventListener('pointerdown', handlePointerDown, true)
-			window.removeEventListener('keydown', handleKeydown, true)
-			window.removeEventListener('resize', handleReposition)
-			window.removeEventListener('scroll', handleReposition, true)
+			ownerWindow.removeEventListener('pointerdown', handlePointerDown, true)
+			ownerWindow.removeEventListener('keydown', handleKeydown, true)
+			ownerWindow.removeEventListener('resize', handleReposition)
+			ownerWindow.removeEventListener('scroll', handleReposition, true)
 		}
 	}
 
 	private positionHistoryPopover(popover: HTMLElement, anchor: HTMLElement) {
+		const ownerWindow = popover.ownerDocument.defaultView ?? window
 		const anchorRect = anchor.getBoundingClientRect()
-		const maxWidth = Math.min(420, window.innerWidth - 24)
-		popover.style.maxWidth = `${maxWidth}px`
-		popover.style.width = `${Math.min(maxWidth, 360)}px`
+		const maxWidth = Math.min(420, ownerWindow.innerWidth - 24)
+		setElementStyles(popover, {
+			maxWidth: `${maxWidth}px`,
+			width: `${Math.min(maxWidth, 360)}px`,
+		})
 		const rect = popover.getBoundingClientRect()
 		const left = Math.min(
 			Math.max(12, anchorRect.left),
-			window.innerWidth - rect.width - 12,
+			ownerWindow.innerWidth - rect.width - 12,
 		)
 		const below = anchorRect.bottom + 8
 		const above = anchorRect.top - rect.height - 8
 		const top =
-			below + rect.height <= window.innerHeight - 12
+			below + rect.height <= ownerWindow.innerHeight - 12
 				? below
 				: Math.max(12, above)
-		popover.style.left = `${left}px`
-		popover.style.top = `${top}px`
+		setElementStyles(popover, {
+			left: `${left}px`,
+			top: `${top}px`,
+		})
 	}
 
 	private closeHistoryPopover() {
@@ -1187,6 +1217,7 @@ class InlineAIViewPlugin {
 			decorations.push({
 				from: this.activeResponse.responseEnd,
 				to: this.activeResponse.responseEnd,
+				side: 1,
 				value: Decoration.widget({
 					widget: new InlineStreamCursorWidget(),
 					side: 1,
@@ -1197,7 +1228,7 @@ class InlineAIViewPlugin {
 			(left, right) =>
 				left.from - right.from ||
 				left.to - right.to ||
-				(left.value.spec?.side || 0) - (right.value.spec?.side || 0),
+				(left.side || 0) - (right.side || 0),
 		)
 		const builder = new RangeSetBuilder<Decoration>()
 		for (const decoration of decorations) {

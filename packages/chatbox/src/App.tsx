@@ -35,6 +35,20 @@ const DESKTOP_INPUT_MAX_VIEWPORT_RATIO = 0.6
 const COMPACT_INPUT_MIN_HEIGHT = 34
 const COMPACT_INPUT_MAX_HEIGHT = 120
 
+function setElementStyles(
+	element: HTMLElement,
+	styles: Partial<CSSStyleDeclaration>,
+) {
+	const obsidianElement = element as HTMLElement & {
+		setCssStyles?: (styles: Partial<CSSStyleDeclaration>) => void
+	}
+	if (typeof obsidianElement.setCssStyles === 'function') {
+		obsidianElement.setCssStyles(styles)
+		return
+	}
+	Object.assign(element.style, styles)
+}
+
 function App(props: AppProps) {
 	const [input, setInput] = createSignal('')
 	const [attachments, setAttachments] = createSignal<ChatImageAttachment[]>([])
@@ -142,18 +156,24 @@ function App(props: AppProps) {
 			return
 		}
 		if (desktopResizeEnabled()) {
-			messageInputEl.style.height = ''
-			messageInputEl.style.overflowY = ''
+			setElementStyles(messageInputEl, {
+				height: '',
+				overflowY: '',
+			})
 			return
 		}
-		messageInputEl.style.height = 'auto'
+		setElementStyles(messageInputEl, { height: 'auto' })
 		const nextHeight = Math.min(
 			Math.max(messageInputEl.scrollHeight, COMPACT_INPUT_MIN_HEIGHT),
 			COMPACT_INPUT_MAX_HEIGHT,
 		)
-		messageInputEl.style.height = `${nextHeight}px`
-		messageInputEl.style.overflowY =
-			messageInputEl.scrollHeight > COMPACT_INPUT_MAX_HEIGHT ? 'auto' : 'hidden'
+		setElementStyles(messageInputEl, {
+			height: `${nextHeight}px`,
+			overflowY:
+				messageInputEl.scrollHeight > COMPACT_INPUT_MAX_HEIGHT
+					? 'auto'
+					: 'hidden',
+		})
 	}
 
 	function clearSlashCommandInput() {

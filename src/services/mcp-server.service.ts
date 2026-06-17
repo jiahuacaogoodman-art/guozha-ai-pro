@@ -48,6 +48,17 @@ interface JSONRPCRequest {
 	params?: Record<string, unknown>
 }
 
+interface JSONRPCResult {
+	jsonrpc: string
+	id: JSONRPCRequest['id'] | null
+	result?: unknown
+	error?: {
+		code: number
+		message: string
+		data?: unknown
+	}
+}
+
 interface VaultResourceInfo {
 	uri: string
 	name: string
@@ -297,7 +308,10 @@ function readBody(request: NodeRequest): Promise<string> {
 	})
 }
 
-function toJSONRPCResult(id: JSONRPCRequest['id'], result: unknown) {
+function toJSONRPCResult(
+	id: JSONRPCRequest['id'],
+	result: unknown,
+): JSONRPCResult {
 	return {
 		jsonrpc: '2.0',
 		id: id ?? null,
@@ -309,7 +323,7 @@ function toJSONRPCError(
 	id: JSONRPCRequest['id'],
 	code: number,
 	message: string,
-) {
+): JSONRPCResult {
 	return {
 		jsonrpc: '2.0',
 		id: id ?? null,
@@ -318,6 +332,27 @@ function toJSONRPCError(
 			message,
 		},
 	}
+}
+
+function isJSONRPCRequest(value: unknown): value is JSONRPCRequest {
+	if (!value || typeof value !== 'object') {
+		return false
+	}
+	const request = value as Record<string, unknown>
+	return request.method === undefined || typeof request.method === 'string'
+}
+
+function parseJSONRPCPayload(raw: string): JSONRPCRequest | JSONRPCRequest[] {
+	const parsed = JSON.parse(raw) as unknown
+	const items = Array.isArray(parsed) ? parsed : [parsed]
+	if (!items.every(isJSONRPCRequest)) {
+		throw new Error('Invalid JSON-RPC request')
+	}
+	return Array.isArray(parsed) ? items : items[0]
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object'
 }
 
 function encodeVaultResourceUri(path: string) {
@@ -717,7 +752,7 @@ export default class MCPServerService {
 
 		let payload: JSONRPCRequest | JSONRPCRequest[]
 		try {
-			payload = JSON.parse(await readBody(request)) as JSONRPCRequest
+			payload = parseJSONRPCPayload(await readBody(request))
 		} catch {
 			response.writeHead(
 				400,
@@ -732,7 +767,7 @@ export default class MCPServerService {
 		if (!session) {
 			return
 		}
-		const rawResults = await Promise.all(
+		const rawResults: Array<JSONRPCResult | undefined> = await Promise.all(
 			requests.map((item) => this.handleJSONRPC(item, session)),
 		)
 		const results = rawResults.filter((item) => item !== undefined)
@@ -1520,9 +1555,7 @@ export default class MCPServerService {
 			_meta: {
 				reversibleOps: result.reversibleOps || [],
 			},
-			isError:
-				typeof result.result === 'object' &&
-				!!(result.result as Record<string, unknown>).error,
+			isError: isRecord(result.result) && !!result.result.error,
 		}
 	}
 

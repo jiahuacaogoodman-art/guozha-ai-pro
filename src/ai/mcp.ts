@@ -33,7 +33,9 @@ export function createMCPToken() {
 			bytes[index] = Math.floor(Math.random() * 256)
 		}
 	}
-	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+		'',
+	)
 }
 
 interface JSONRPCResponse {
@@ -204,7 +206,7 @@ function toListToolsResult(value: unknown): MCPListToolsResult {
 }
 
 function toCallToolResult(value: unknown): MCPCallToolResult {
-	return toResultObject(value)
+	return { ...toResultObject(value) }
 }
 
 function toListResourcesResult(value: unknown): MCPListResourcesResult {
@@ -399,7 +401,9 @@ export class MCPHttpClient {
 	}
 
 	hasCapability(name: string) {
-		return Object.prototype.hasOwnProperty.call(this.capabilities, name)
+		return Boolean(
+			Object.prototype.hasOwnProperty.call(this.capabilities, name),
+		)
 	}
 
 	async listTools() {
@@ -420,10 +424,7 @@ export class MCPHttpClient {
 	async listResources(cursor?: string) {
 		await this.initialize()
 		return toListResourcesResult(
-			await this.request(
-				'resources/list',
-				cursor ? { cursor } : undefined,
-			),
+			await this.request('resources/list', cursor ? { cursor } : undefined),
 		)
 	}
 
@@ -562,7 +563,10 @@ export async function createMCPTools(
 				? await client.listTools()
 				: []
 			const exposedTools = tools.map((tool): AIToolDefinition => {
-				const exposedName = sanitizeMCPToolName(server.id || server.name, tool.name)
+				const exposedName = sanitizeMCPToolName(
+					server.id || server.name,
+					tool.name,
+				)
 				return {
 					name: exposedName,
 					description: [
