@@ -32,6 +32,7 @@ export interface GenerateAssistantTurnRequest {
 	tools: AIToolDefinition[]
 	temperature?: number
 	maxTokens?: number
+	disableTools?: boolean
 	onTextDelta?: (delta: string, fullText: string) => void | Promise<void>
 }
 
@@ -539,7 +540,7 @@ function shouldTryDirectTextFirst(
 	const lastMessage = getLastMessage(request.messages)
 	return (
 		!interleavedField &&
-		request.tools.length === 0 &&
+		(request.disableTools || request.tools.length === 0) &&
 		lastMessage?.role === 'user' &&
 		!hasImageParts(lastMessage)
 	)
@@ -675,9 +676,13 @@ function toOpenAITextMessage(message: AIMessage) {
 }
 
 function createDirectTextMessages(messages: AIMessage[]) {
-	const lastUserMessage = getLastUserMessage(messages)
-	return (lastUserMessage ? [lastUserMessage] : messages)
-		.filter((message) => message.role === 'user' || message.role === 'system')
+	return messages
+		.filter(
+			(message) =>
+				message.role === 'user' ||
+				message.role === 'assistant' ||
+				message.role === 'system',
+		)
 		.map(toOpenAITextMessage)
 		.filter((message) => message.content.trim().length > 0)
 }
@@ -1188,7 +1193,7 @@ export async function streamAssistantTurn(
 	const result = streamText({
 		model,
 		messages: toModelMessages(request.messages),
-		tools: toAISDKTools(request.tools),
+		tools: request.disableTools ? {} : toAISDKTools(request.tools),
 		stopWhen: stepCountIs(1),
 		temperature: request.temperature,
 		maxOutputTokens: request.maxTokens,

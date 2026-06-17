@@ -162,6 +162,52 @@ describe('generateAssistantTurn', () => {
 		})
 	})
 
+	it('keeps prior text turns in direct streaming requests', async () => {
+		const fetchMock = vi.mocked(globalThis.fetch)
+		fetchMock.mockResolvedValueOnce(
+			new Response('data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', {
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+			}),
+		)
+		const provider = createProvider()
+		provider.api = 'https://example.com'
+
+		await generateAssistantTurn({
+			provider,
+			model: 'model-1',
+			messages: [
+				{
+					role: 'system',
+					content: [{ type: 'text', text: 'inline rules' }],
+				},
+				{
+					role: 'user',
+					content: [{ type: 'text', text: 'first question' }],
+				},
+				{
+					role: 'assistant',
+					content: [{ type: 'text', text: 'first answer' }],
+				},
+				{
+					role: 'user',
+					content: [{ type: 'text', text: 'follow up' }],
+				},
+			],
+			tools: [],
+			onTextDelta: vi.fn(),
+		})
+
+		expect(
+			JSON.parse(fetchMock.mock.calls[0][1]?.body as string).messages,
+		).toEqual([
+			{ role: 'system', content: 'inline rules' },
+			{ role: 'user', content: 'first question' },
+			{ role: 'assistant', content: 'first answer' },
+			{ role: 'user', content: 'follow up' },
+		])
+	})
+
 	it('keeps tool-capable requests on the SDK streaming path', async () => {
 		aiMocks.streamText.mockReturnValueOnce({
 			textStream: (async function* () {
@@ -682,6 +728,14 @@ describe('generateAssistantTurn', () => {
 			temperature: 0.2,
 			max_tokens: 512,
 			messages: [
+				{
+					role: 'user',
+					content: 'Old question',
+				},
+				{
+					role: 'assistant',
+					content: 'Old answer',
+				},
 				{
 					role: 'user',
 					content: 'Latest question',

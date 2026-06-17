@@ -11,6 +11,12 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.48
         version: 3.0.48(zod@4.3.6)
+      '@codemirror/state':
+        specifier: 6.5.0
+        version: 6.5.0
+      '@codemirror/view':
+        specifier: 6.38.6
+        version: 6.38.6
       '@deanc/esbuild-plugin-postcss':
         specifier: ^1.0.2
         version: 1.0.2(esbuild@0.17.3)

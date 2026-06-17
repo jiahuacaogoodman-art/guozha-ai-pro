@@ -20,6 +20,7 @@ import ChatService from './services/chat.service'
 import CommandService from './services/command.service'
 import EventsService from './services/events.service'
 import I18nService from './services/i18n.service'
+import InlineAIService from './services/inline-ai.service'
 import LoggerService from './services/logger.service'
 import MCPServerService from './services/mcp-server.service'
 import { ProgressService } from './services/progress.service'
@@ -49,6 +50,7 @@ export default class NutstorePlugin extends Plugin {
 	public commandService = new CommandService(this)
 	public eventsService = new EventsService(this)
 	public i18nService = new I18nService(this)
+	public inlineAIService = new InlineAIService(this)
 	public loggerService = new LoggerService(this)
 	public mcpServerService = new MCPServerService(this)
 	public progressService = new ProgressService(this)
@@ -69,6 +71,7 @@ export default class NutstorePlugin extends Plugin {
 	async onload() {
 		await this.loadSettings()
 		await this.chatService.initialize()
+		this.inlineAIService.load()
 		this.addSettingTab(new NutstoreSettingTab(this.app, this))
 		this.registerView(CHATBOX_VIEW_TYPE, (leaf) => new ChatboxView(leaf, this))
 
