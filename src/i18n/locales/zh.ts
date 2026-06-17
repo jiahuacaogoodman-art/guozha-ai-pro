@@ -103,6 +103,48 @@ export default {
 				name: '默认 Model',
 				desc: '新建对话时可选的默认 Model',
 			},
+			inlineText: {
+				name: '文本 AI（//）',
+				desc: '单独控制正文里 // 触发的即时对话、辅助写作和文件编辑。',
+				followChat: '跟随普通聊天',
+				followChatModel: '跟随普通聊天 Model',
+				save: '保存文本 AI 设置',
+				enabled: {
+					name: '启用文本 AI',
+					desc: '关闭后，正文中的 // 触发会显示已关闭提示。',
+				},
+				provider: {
+					name: '文本 AI Provider',
+					desc: '留空则跟随普通聊天的默认 Provider。',
+				},
+				model: {
+					name: '文本 AI Model',
+					desc: '为正文内对话单独指定模型；留空则跟随普通聊天。',
+				},
+				toolMode: {
+					name: '工具模式',
+					desc: '控制 // 对话何时读写文件、操作笔记和调用工具。',
+					auto: '自动识别',
+					always: '始终启用工具',
+					never: '从不启用工具',
+				},
+				temperature: {
+					name: '温度',
+					desc: '0 更稳定，2 更发散。建议写作 0.7 左右，整理文件可降低。',
+				},
+				compactMaxTokens: {
+					name: '普通回复长度',
+					desc: '未启用工具时的最大输出 tokens，适合短问答和轻量续写。',
+				},
+				toolMaxTokens: {
+					name: '工具回复长度',
+					desc: '启用工具时的最大输出 tokens；需要操控文件时不会被强行压短。',
+				},
+				keepInlineAfterFileWrite: {
+					name: '文件写入后保留内联反馈',
+					desc: '关闭时，AI 写入文件后不会再把“已完成”等反馈插入正文，避免污染笔记。',
+				},
+			},
 			providers: {
 				name: 'Providers',
 				desc: '管理可用的 AI Provider',
@@ -179,7 +221,8 @@ export default {
 			},
 			mcp: {
 				name: 'MCP Servers',
-				summary: '已配置 {{count}} 个 MCP Server。启用后，AI 可以调用这些外部工具。',
+				summary:
+					'已配置 {{count}} 个 MCP Server。启用后，AI 可以调用这些外部工具。',
 				add: '新增 MCP Server',
 				copy: '复制',
 				copied: '已复制',
@@ -193,16 +236,19 @@ export default {
 					port: '本地端口',
 					portDesc: '默认 41733。改完保存并重启本地 MCP Server。',
 					requireToken: '要求 Bearer 访问令牌',
-					requireTokenDesc: '默认关闭，避免本机客户端触发 OAuth/Unsafe URL。只在你需要额外本机鉴权时打开。',
+					requireTokenDesc:
+						'默认关闭，避免本机客户端触发 OAuth/Unsafe URL。只在你需要额外本机鉴权时打开。',
 					httpUrl: 'HTTP MCP 地址',
 					stdioConfig: 'stdio 配置 JSON',
-					stdioConfigDesc: '复制到 Claude Desktop、Cursor 等 MCP 客户端配置中。',
+					stdioConfigDesc:
+						'复制到 Claude Desktop、Cursor 等 MCP 客户端配置中。',
 					bridgePath: 'stdio bridge 路径',
 					token: 'Bearer 访问令牌',
 					tokenDesc: '仅在开启令牌模式时需要。',
 					tokenPlaceholder: '访问令牌',
 					nodeCommand: 'Node 命令',
-					nodeCommandDesc: 'stdio bridge 使用的 Node 路径。系统能找到 node 时填 node；找不到时填绝对路径。',
+					nodeCommandDesc:
+						'stdio bridge 使用的 Node 路径。系统能找到 node 时填 node；找不到时填绝对路径。',
 				},
 			},
 			errors: {

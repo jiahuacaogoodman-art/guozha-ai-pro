@@ -79,6 +79,7 @@ const CHAT_EXPORT_PAYLOAD_VERSION = 1
 const INTERRUPTED_TASK_CANCEL_REASON = 'interrupted_by_restart'
 const IMPORTED_TASK_CANCEL_REASON = 'imported_session'
 const INLINE_TOOL_MIN_MAX_TOKENS = 16000
+const MAX_INLINE_TOOL_ROUNDS = 8
 const INLINE_TOOL_RESULT_SUMMARY_LIMIT = 6000
 const COMPRESSION_PROMPT = [
 	'Summarize the conversation above for continuation in a fresh context.',
@@ -144,12 +145,15 @@ export interface InlineAIRunRequest {
 	allowLongForm?: boolean
 	disableTools?: boolean
 	inferenceParams?: ChatInferenceParams
+	modelSelection?: { providerId?: string; modelId?: string }
+	keepInlineAfterFileWrite?: boolean
 	onTextDelta?: (delta: string, fullText: string) => void | Promise<void>
 }
 
 interface InlineRunResult {
 	text: string
 	toolUsed: boolean
+	fileWritten?: boolean
 }
 
 function toTextParts(text: string): AIMessageContentPart[] {
@@ -207,6 +211,24 @@ export function normalizeInlineInferenceParams(
 		...(params || {}),
 		maxTokens,
 	}
+}
+
+function normalizeInlineTextNumber(
+	value: unknown,
+	fallback: number,
+	min: number,
+	max: number,
+) {
+	const parsed =
+		typeof value === 'number'
+			? value
+			: typeof value === 'string'
+				? Number(value)
+				: NaN
+	if (!Number.isFinite(parsed)) {
+		return fallback
+	}
+	return Math.min(max, Math.max(min, parsed))
 }
 
 function summarizeToolPayload(payload: string | Record<string, unknown>) {
@@ -503,10 +525,10 @@ function createInlineSystemPrompt(
 ) {
 	const isToolMode = Boolean(options?.allowLongForm)
 	const actionGuidance = options?.allowLongForm
-		? 'If the user asks you to change, read, create, delete, move, rename, search, format, test, build, publish, inspect, or write vault content, use the available tools. After using tools, report what you did, which files or notes were affected, and any remaining issue with enough detail to be useful. Do not shorten the result merely because this is inline.'
+		? 'If the user asks you to change, read, create, delete, move, rename, search, format, test, build, publish, inspect, make a table/list, or write vault content, use the available tools. Do the file operation; do not merely describe what should be changed. If the user says to put something "in the file", "in the note", "in the current file", or similar, edit the current file instead of pasting the generated content into the chat. For current-note or whole-file rewrites, read the file if needed and then use write_file with the full final file content. Use edit_file only when you have a short exact unique replacement. For selected text edits, use edit_file with the selected text as oldText when it is clearly unique; otherwise read_file and write_file the final file. After using tools, report what you did, which files or notes were affected, and any remaining issue with enough detail to be useful. Do not shorten the result merely because this is inline.'
 		: 'If the user asks you to change, read, create, delete, move, rename, search, format, or write vault content, use the available tools and then report the concrete result briefly.'
 	const currentFileGuidance = context?.filePath
-		? `When the user says "current note", "current file", "this note", "this file", or gives an editing request without a path, operate on ${context.filePath}.`
+		? `When the user says "current note", "current file", "this note", "this file", "in the file", "in the note", or gives an editing request without a path, operate on ${context.filePath}. For edits to that note, write changes back to ${context.filePath} with write_file or edit_file. If the request is to add generated content such as a table, list, paragraph, outline, or summary, insert it into ${context.filePath} at the cursor/nearby context unless the user specifies another location.`
 		: ''
 	const selectionGuidance = context?.selection
 		? 'When a current selection is provided and the user asks to rewrite, polish, translate, format, summarize, or otherwise edit "this", prefer operating on that selected text.'
@@ -1017,6 +1039,39 @@ export default class ChatService {
 		return params ? { ...params } : undefined
 	}
 
+	getInlineTextAIOptions(baseUseTools: boolean) {
+		const config = this.plugin.settings.ai.inlineText
+		const toolMode = config?.toolMode || 'auto'
+		const useTools =
+			toolMode === 'always' ? true : toolMode === 'never' ? false : baseUseTools
+		const compactMaxTokens = normalizeInlineTextNumber(
+			config?.compactMaxTokens,
+			600,
+			64,
+			200000,
+		)
+		const toolMaxTokens = normalizeInlineTextNumber(
+			config?.toolMaxTokens,
+			INLINE_TOOL_MIN_MAX_TOKENS,
+			compactMaxTokens,
+			200000,
+		)
+		const temperature =
+			config?.temperature === undefined || config.temperature === null
+				? undefined
+				: normalizeInlineTextNumber(config.temperature, 0.7, 0, 2)
+		return {
+			enabled: config?.enabled !== false,
+			useTools,
+			modelSelection: config?.model,
+			keepInlineAfterFileWrite: config?.keepInlineAfterFileWrite ?? false,
+			inferenceParams: {
+				...(temperature !== undefined ? { temperature } : {}),
+				maxTokens: useTools ? toolMaxTokens : compactMaxTokens,
+			} satisfies ChatInferenceParams,
+		}
+	}
+
 	async sendMessage(payload: ChatSendPayload | string) {
 		await this.initialize()
 		const normalizedPayload =
@@ -1068,7 +1123,13 @@ export default class ChatService {
 
 	async runInlineAI(request: InlineAIRunRequest): Promise<InlineRunResult> {
 		await this.initialize()
-		const { providerId, modelId } = this.getInitialSelectionForNewSession()
+		const { providerId, modelId } =
+			request.modelSelection?.providerId && request.modelSelection?.modelId
+				? {
+						providerId: request.modelSelection.providerId,
+						modelId: request.modelSelection.modelId,
+					}
+				: this.getInitialSelectionForNewSession()
 		const session = this.createInlineSession(providerId, modelId)
 		const provider = this.getProviderOrThrow(session)
 		const model = this.getModelOrThrow(provider, session)
@@ -1079,7 +1140,7 @@ export default class ChatService {
 			request.inferenceParams,
 			{
 				allowLongForm: request.allowLongForm,
-				modelMaxOutput: model.limit.output,
+				modelMaxOutput: model.limit?.output,
 			},
 		)
 		const messages: AIMessage[] = [
@@ -1108,35 +1169,79 @@ export default class ChatService {
 			...(inferenceParams || {}),
 			onTextDelta: request.onTextDelta,
 		})
-		const toolCalls = getAssistantToolCalls(response.message)
-		if (toolCalls?.length) {
+		messages.push(response.message)
+
+		let toolUsed = false
+		let latestMessage = response.message
+		let repeatState: ToolCallRepeatState = {
+			consecutiveCount: 0,
+			isRepeatedTooManyTimes: false,
+		}
+		let lastToolMessages: Awaited<ReturnType<typeof this.resolveToolCalls>> = []
+		let fileWritten = false
+
+		for (let round = 0; round < MAX_INLINE_TOOL_ROUNDS; round += 1) {
+			const toolCalls = getAssistantToolCalls(latestMessage)
+			if (!toolCalls?.length) {
+				const text =
+					messageToText(latestMessage).trim() ||
+					(toolUsed ? summarizeInlineToolRun(lastToolMessages) : '')
+				return {
+					text: request.keepInlineAfterFileWrite || !fileWritten ? text : '',
+					toolUsed,
+					fileWritten,
+				}
+			}
+
+			toolUsed = true
+			repeatState = updateToolCallRepeatState(repeatState, toolCalls)
+			if (repeatState.isRepeatedTooManyTimes) {
+				return {
+					text: i18n.t('chatbox.repeatedToolCallsStopped', {
+						count: REPEATED_TOOL_CALL_THRESHOLD,
+					}),
+					toolUsed: true,
+					fileWritten,
+				}
+			}
+
 			const toolMessages = await this.resolveToolCalls(toolCalls, tools, {
 				session,
 				depth: 0,
 				maxDepth: MAX_TASK_DEPTH,
 			})
+			lastToolMessages = toolMessages
+			if (
+				toolMessages.some(
+					(item) =>
+						!item.isError &&
+						(item.name === 'write_file' ||
+							item.name === 'edit_file' ||
+							(item.name === 'bash' && !!item.reversibleOps?.length)),
+				)
+			) {
+				fileWritten = true
+			}
+			messages.push(...toolMessages.map((item) => item.message))
 			const followUp = await generateAssistantTurn({
 				provider,
 				model: model.id,
-				messages: [
-					...messages,
-					response.message,
-					...toolMessages.map((item) => item.message),
-				],
+				messages,
 				tools,
 				disableTools: request.disableTools,
 				...(inferenceParams || {}),
-				onTextDelta: request.onTextDelta,
+				onTextDelta: fileWritten ? undefined : request.onTextDelta,
 			})
-			const finalText = messageToText(followUp.message).trim()
-			return {
-				text: finalText || summarizeInlineToolRun(toolMessages),
-				toolUsed: true,
-			}
+			latestMessage = followUp.message
+			messages.push(latestMessage)
 		}
+
 		return {
-			text: messageToText(response.message).trim(),
-			toolUsed: false,
+			text: i18n.t('chatbox.repeatedToolCallsStopped', {
+				count: MAX_INLINE_TOOL_ROUNDS,
+			}),
+			toolUsed,
+			fileWritten,
 		}
 	}
 

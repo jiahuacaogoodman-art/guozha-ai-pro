@@ -128,6 +128,48 @@ export default {
 				name: 'Default model',
 				desc: 'Optional model selected for new chat sessions',
 			},
+			inlineText: {
+				name: 'Text AI (//)',
+				desc: 'Control inline // conversations, writing help, and file editing separately.',
+				followChat: 'Follow regular chat',
+				followChatModel: 'Follow regular chat model',
+				save: 'Save text AI settings',
+				enabled: {
+					name: 'Enable text AI',
+					desc: 'When disabled, // triggers in notes show a disabled notice.',
+				},
+				provider: {
+					name: 'Text AI provider',
+					desc: 'Leave empty to follow the regular chat default provider.',
+				},
+				model: {
+					name: 'Text AI model',
+					desc: 'Use a separate model for inline note conversations, or leave empty to follow regular chat.',
+				},
+				toolMode: {
+					name: 'Tool mode',
+					desc: 'Control when // conversations can read, write, and operate on notes.',
+					auto: 'Auto detect',
+					always: 'Always enable tools',
+					never: 'Never enable tools',
+				},
+				temperature: {
+					name: 'Temperature',
+					desc: '0 is steadier, 2 is more varied. Around 0.7 works well for writing; lower it for file edits.',
+				},
+				compactMaxTokens: {
+					name: 'Compact reply length',
+					desc: 'Maximum output tokens when tools are not enabled, useful for short Q&A and light continuation.',
+				},
+				toolMaxTokens: {
+					name: 'Tool reply length',
+					desc: 'Maximum output tokens when tools are enabled, so file operations are not forced into tiny replies.',
+				},
+				keepInlineAfterFileWrite: {
+					name: 'Keep inline feedback after file writes',
+					desc: 'When off, AI will not insert completion text into the note after writing files, keeping the document clean.',
+				},
+			},
 			providers: {
 				name: 'Providers',
 				desc: 'Manage available AI providers',
@@ -217,18 +259,22 @@ export default {
 					name: 'Local MCP Server',
 					desc: 'When enabled, local MCP clients can connect to Guozha. Prefer the stdio config; use the HTTP URL for clients that support Streamable HTTP.',
 					port: 'Local port',
-					portDesc: 'Default is 41733. Save and restart the local MCP server after changing it.',
+					portDesc:
+						'Default is 41733. Save and restart the local MCP server after changing it.',
 					requireToken: 'Require Bearer access token',
-					requireTokenDesc: 'Off by default to avoid OAuth/Unsafe URL flows in local clients. Enable only when you need extra local auth.',
+					requireTokenDesc:
+						'Off by default to avoid OAuth/Unsafe URL flows in local clients. Enable only when you need extra local auth.',
 					httpUrl: 'HTTP MCP URL',
 					stdioConfig: 'stdio config JSON',
-					stdioConfigDesc: 'Copy into Claude Desktop, Cursor, or another MCP client config.',
+					stdioConfigDesc:
+						'Copy into Claude Desktop, Cursor, or another MCP client config.',
 					bridgePath: 'stdio bridge path',
 					token: 'Bearer access token',
 					tokenDesc: 'Only needed when token mode is enabled.',
 					tokenPlaceholder: 'Access token',
 					nodeCommand: 'Node command',
-					nodeCommandDesc: 'Node path used by the stdio bridge. Use node when it is on PATH, or paste an absolute path.',
+					nodeCommandDesc:
+						'Node path used by the stdio bridge. Use node when it is on PATH, or paste an absolute path.',
 				},
 			},
 			errors: {

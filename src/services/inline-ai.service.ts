@@ -66,6 +66,8 @@ interface InlineAIPromptMatch {
 	role: InlineAIRole
 }
 
+type InlineHistoryDeleteKey = 'Backspace' | 'Delete'
+
 function createInlineId() {
 	return `inline-${Date.now().toString(36)}-${Math.random()
 		.toString(36)
@@ -179,12 +181,23 @@ export function shouldUseToolsForInline(input: string) {
 	const actionKeywords = [
 		'改',
 		'修改',
+		'改写',
 		'编辑',
 		'整理',
 		'美化',
 		'润色',
+		'优化',
+		'完善',
+		'校对',
+		'纠错',
 		'重写',
 		'续写',
+		'扩写',
+		'缩写',
+		'做表',
+		'制表',
+		'生成表',
+		'表格',
 		'翻译并替换',
 		'总结到',
 		'写入',
@@ -248,6 +261,7 @@ export function shouldUseToolsForInline(input: string) {
 		'save',
 		'insert',
 		'replace',
+		'table',
 	]
 	if (actionKeywords.some((keyword) => normalized.includes(keyword))) {
 		return true
@@ -255,6 +269,14 @@ export function shouldUseToolsForInline(input: string) {
 	const fileSignals = [
 		'当前笔记',
 		'当前文件',
+		'这个文件',
+		'这个笔记',
+		'本文件',
+		'本笔记',
+		'在文件里',
+		'在笔记里',
+		'文件里',
+		'笔记里',
 		'全文',
 		'文稿',
 		'标题',
@@ -266,9 +288,16 @@ export function shouldUseToolsForInline(input: string) {
 		'.md',
 		'vault',
 	]
-	const weakRequest = ['帮我', '替我', '为我', '把', '将', '请'].some(
-		(keyword) => normalized.includes(keyword),
-	)
+	const weakRequest = [
+		'帮我',
+		'替我',
+		'为我',
+		'给我',
+		'让你',
+		'把',
+		'将',
+		'请',
+	].some((keyword) => normalized.includes(keyword))
 	return (
 		weakRequest &&
 		fileSignals.some((keyword) => normalized.includes(keyword)) &&
@@ -385,8 +414,37 @@ export function decodePayload(encoded: string) {
 	return undefined
 }
 
+export function findInlineHistoryRangeForDelete(
+	docText: string,
+	position: number,
+	key: InlineHistoryDeleteKey,
+) {
+	INLINE_HISTORY_COMMENT_RE.lastIndex = 0
+	let match: RegExpExecArray | null
+	while ((match = INLINE_HISTORY_COMMENT_RE.exec(docText)) !== null) {
+		const payload = decodePayload(match[1])
+		if (!payload) {
+			continue
+		}
+		const from = match.index
+		const to = match.index + match[0].length
+		const touchesRange =
+			key === 'Backspace'
+				? position === to || (position > from && position <= to)
+				: position === from || (position >= from && position < to)
+		if (touchesRange) {
+			return { from, to }
+		}
+	}
+	return undefined
+}
+
 function getFilePath(view: EditorView) {
 	const owner = InlineAIService.instance?.plugin
+	const activeView = owner?.app.workspace.getActiveViewOfType(MarkdownView)
+	if (activeView?.contentEl.contains(view.dom)) {
+		return activeView.file?.path
+	}
 	const leaves = owner?.app.workspace.getLeavesOfType('markdown') || []
 	const leaf = leaves.find((item) => {
 		const markdownView = item.view
@@ -396,9 +454,10 @@ function getFilePath(view: EditorView) {
 		)
 	})
 	const markdownView = leaf?.view
-	return markdownView instanceof MarkdownView
-		? markdownView.file?.path
-		: undefined
+	if (markdownView instanceof MarkdownView) {
+		return markdownView.file?.path
+	}
+	return owner?.app.workspace.getActiveFile?.()?.path
 }
 
 function activeContext(
@@ -479,6 +538,14 @@ class InlineHistoryDotWidget extends WidgetType {
 				button,
 			)
 		})
+		button.addEventListener('keydown', (event) => {
+			if (event.key !== 'Backspace' && event.key !== 'Delete') {
+				return
+			}
+			event.preventDefault()
+			event.stopPropagation()
+			this.service.deleteHistory(view, this.from, this.to)
+		})
 		return button
 	}
 
@@ -548,6 +615,14 @@ class InlineAIViewPlugin {
 				return true
 			}
 		}
+		if (
+			(event.key === 'Backspace' || event.key === 'Delete') &&
+			!event.altKey &&
+			!event.ctrlKey &&
+			!event.metaKey
+		) {
+			return this.tryDeleteInlineHistory(event, view)
+		}
 		if (event.key === 'Enter' && !event.shiftKey) {
 			return this.trySubmitInlinePrompt(event, view)
 		}
@@ -576,6 +651,10 @@ class InlineAIViewPlugin {
 			effects: EditorView.scrollIntoView(from + text.length),
 		})
 		this.decorations = this.buildDecorations()
+	}
+
+	deleteHistory(from: number, to: number) {
+		this.deleteHistoryRange(from, to)
 	}
 
 	showHistoryPopover(
@@ -666,6 +745,14 @@ class InlineAIViewPlugin {
 				copyButton.textContent = '复制历史'
 			}, 1200)
 		})
+		const deleteButton = footer.createEl('button', {
+			cls: 'guozha-inline-ai-history-popover-action guozha-inline-ai-history-popover-action-danger',
+			text: '删除记录',
+			attr: { type: 'button' },
+		})
+		deleteButton.addEventListener('click', () => {
+			this.deleteHistoryRange(from, to)
+		})
 
 		document.body.appendChild(popover)
 		this.historyPopover = popover
@@ -724,6 +811,35 @@ class InlineAIViewPlugin {
 		this.historyPopoverCleanup = undefined
 		this.historyPopover?.remove()
 		this.historyPopover = undefined
+	}
+
+	private tryDeleteInlineHistory(event: KeyboardEvent, view: EditorView) {
+		const selection = view.state.selection.main
+		if (!selection.empty) {
+			return false
+		}
+		const range = findInlineHistoryRangeForDelete(
+			view.state.doc.toString(),
+			selection.head,
+			event.key as InlineHistoryDeleteKey,
+		)
+		if (!range) {
+			return false
+		}
+		event.preventDefault()
+		event.stopPropagation()
+		this.deleteHistoryRange(range.from, range.to)
+		return true
+	}
+
+	private deleteHistoryRange(from: number, to: number) {
+		this.closeHistoryPopover()
+		this.view.dispatch({
+			changes: { from, to, insert: '' },
+			selection: { anchor: from },
+			effects: EditorView.scrollIntoView(from),
+		})
+		this.decorations = this.buildDecorations()
 	}
 
 	private tryHandleDoubleSlash(event: KeyboardEvent, view: EditorView) {
@@ -859,7 +975,10 @@ class InlineAIViewPlugin {
 		const insert = `${TURN_SEPARATOR}${ASSISTANT_PROMPT}`
 		const responseStart = insertAt + insert.length
 		const id = createInlineId()
-		const useTools = shouldUseToolsForInline(input)
+		const inlineOptions = this.plugin.chatService.getInlineTextAIOptions(
+			shouldUseToolsForInline(input),
+		)
+		const useTools = inlineOptions.useTools
 		const absoluteSegmentStart = lineFrom + segmentStart
 		const selectionText =
 			this.inlineSelection?.segmentStart === absoluteSegmentStart
@@ -891,6 +1010,14 @@ class InlineAIViewPlugin {
 			if (!active || active.id !== id) {
 				return
 			}
+			const inlineOptions = this.plugin.chatService.getInlineTextAIOptions(
+				active.useTools,
+			)
+			if (!inlineOptions.enabled) {
+				this.replaceResponse(id, '文本 AI 已在设置中关闭。')
+				this.finishResponse(id)
+				return
+			}
 			let streamed = ''
 			const reply = await this.plugin.chatService.runInlineAI({
 				messages: active.messages,
@@ -901,18 +1028,22 @@ class InlineAIViewPlugin {
 				),
 				allowLongForm: active.useTools,
 				disableTools: !active.useTools,
-				inferenceParams: this.plugin.chatService.getActiveInferenceParams(),
+				inferenceParams: inlineOptions.inferenceParams,
+				modelSelection: inlineOptions.modelSelection,
+				keepInlineAfterFileWrite: inlineOptions.keepInlineAfterFileWrite,
 				onTextDelta: (_delta, fullText) => {
 					streamed = normalizeInlineReply(fullText)
 					this.replaceResponse(id, streamed, true)
 				},
 			})
 			const finalText = normalizeInlineReply(reply.text || streamed)
-			this.replaceResponse(
-				id,
-				finalText || '我在，但这次没有生成可显示的内容。',
-			)
-			this.finishResponse(id)
+			if (!reply.fileWritten) {
+				this.replaceResponse(
+					id,
+					finalText || '我在，但这次没有生成可显示的内容。',
+				)
+			}
+			this.finishResponse(id, { skipContinuation: reply.fileWritten })
 		} catch (error) {
 			logger.error(error)
 			this.replaceResponse(id, `出错：${getErrorMessage(error)}`)
@@ -962,12 +1093,22 @@ class InlineAIViewPlugin {
 		this.view.requestMeasure()
 	}
 
-	private finishResponse(id: string) {
+	private finishResponse(
+		id: string,
+		options: { skipContinuation?: boolean } = {},
+	) {
 		const active = this.activeResponse
 		if (!active || active.id !== id || this.cancelledResponseIds.has(id)) {
 			return
 		}
 		this.clearPendingPaint(id)
+		if (options.skipContinuation) {
+			this.activeResponse = undefined
+			this.inlineSelection = undefined
+			this.decorations = this.buildDecorations()
+			this.view.requestMeasure()
+			return
+		}
 		const insert = `${TURN_SEPARATOR}${USER_PROMPT}`
 		const nextPromptEnd = active.responseEnd + insert.length
 		this.activeResponse = undefined
@@ -1111,6 +1252,11 @@ export default class InlineAIService {
 	) {
 		const pluginValue = view.plugin(this.extension)
 		pluginValue?.continueHistory(payload, from, to)
+	}
+
+	deleteHistory(view: EditorView, from: number, to: number) {
+		const pluginValue = view.plugin(this.extension)
+		pluginValue?.deleteHistory(from, to)
 	}
 
 	showHistoryPopover(

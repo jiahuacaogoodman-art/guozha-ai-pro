@@ -73,6 +73,14 @@ const editFileInputSchema = z.object({
 	newText: textValue('newText'),
 })
 
+const writeFileInputSchema = z.object({
+	path: z
+		.string()
+		.trim()
+		.min(1, i18n.t('chatbox.errors.toolFieldRequired', { field: 'path' })),
+	content: textValue('content'),
+})
+
 const bashInputSchema = z.object({
 	script: textValue('script'),
 	cwd: z.string().default(VAULT_MOUNT_POINT),
@@ -152,9 +160,25 @@ function normalizeVaultToolPath(path: string, toolName: string) {
 		)
 	}
 	const strippedPath = path.startsWith(`${VAULT_MOUNT_POINT}/`)
-		? path.slice(VAULT_MOUNT_POINT.length)
+		? path.slice(VAULT_MOUNT_POINT.length + 1)
 		: path
 	return normalizePath(strippedPath)
+}
+
+async function mkdirsAdapter(app: App, path: string) {
+	const normalized = normalizePath(path)
+	if (!normalized || normalized === '.' || normalized === '/') {
+		return
+	}
+	const parts = normalized.split('/').filter(Boolean)
+	let current = ''
+	for (const part of parts) {
+		current = current ? `${current}/${part}` : part
+		const stat = await app.vault.adapter.stat(current)
+		if (!stat) {
+			await app.vault.adapter.mkdir(current)
+		}
+	}
 }
 
 async function loadVaultTextFile(
@@ -196,11 +220,107 @@ async function writeVaultTextFile(
 	target: VaultTextFile,
 	content: string,
 ) {
+	const targetPath =
+		target.source === 'indexed' ? target.file.path : target.path
+	if ((await writeOpenMarkdownEditor(app, targetPath, content)) !== undefined) {
+		return
+	}
 	if (target.source === 'indexed') {
 		await app.vault.modify(target.file, content)
 		return
 	}
 	await app.vault.adapter.write(target.path, content)
+}
+
+async function writeVaultTextFileByPath(
+	app: App,
+	path: string,
+	content: string,
+) {
+	const openEditorBefore = await writeOpenMarkdownEditor(app, path, content)
+	if (openEditorBefore !== undefined) {
+		return {
+			created: false,
+			before: openEditorBefore,
+		}
+	}
+
+	const target = app.vault.getAbstractFileByPath(path)
+	if (target) {
+		if (!(target instanceof TFile)) {
+			throw new Error(i18n.t('chatbox.errors.notFile', { path }))
+		}
+		const before = await app.vault.cachedRead(target)
+		await app.vault.modify(target, content)
+		return {
+			created: false,
+			before,
+		}
+	}
+
+	const stat = await app.vault.adapter.stat(path)
+	if (stat) {
+		if (stat.type !== 'file') {
+			throw new Error(i18n.t('chatbox.errors.notFile', { path }))
+		}
+		const before = await app.vault.adapter.read(path)
+		await app.vault.adapter.write(path, content)
+		return {
+			created: false,
+			before,
+		}
+	}
+
+	const parent = pathPosix.dirname(path)
+	if (parent && parent !== '.') {
+		await mkdirsAdapter(app, parent)
+	}
+	await app.vault.adapter.write(path, content)
+	return {
+		created: true,
+		before: undefined,
+	}
+}
+
+async function writeOpenMarkdownEditor(
+	app: App,
+	path: string | undefined,
+	content: string,
+) {
+	if (!path) {
+		return undefined
+	}
+	const normalizedPath = normalizePath(path)
+	const leaves = app.workspace?.getLeavesOfType?.('markdown') ?? []
+	for (const leaf of leaves) {
+		const view = leaf.view
+		if (
+			!view ||
+			typeof view !== 'object' ||
+			!('file' in view) ||
+			!('editor' in view)
+		) {
+			continue
+		}
+		const candidate = view as {
+			file?: { path?: string }
+			editor?: {
+				getValue?: () => string
+				setValue?: (content: string) => void
+			}
+		}
+		if (
+			candidate.file?.path !== normalizedPath ||
+			typeof candidate.editor?.getValue !== 'function' ||
+			typeof candidate.editor.setValue !== 'function'
+		) {
+			continue
+		}
+		const before = candidate.editor.getValue()
+		candidate.editor.setValue(content)
+		return before
+	}
+	return undefined
 }
 
 export function createAITools(
@@ -272,6 +392,53 @@ export function createAITools(
 							},
 						},
 					],
+				}
+			},
+		},
+		{
+			name: 'write_file',
+			description:
+				'Create or replace an entire vault text file with the provided content. Use this after read_file when the user asks to rewrite, polish, format, summarize into, or otherwise update the current note/file and exact edit_file matching would be brittle. The path can be vault-relative (e.g. notes/file.md) or an absolute virtual path (e.g. /vault/notes/file.md).',
+			inputSchema: writeFileInputSchema,
+			execute: async (params): Promise<ToolExecutionResult> => {
+				const { path, content } = writeFileInputSchema.parse(params)
+				const normalizedPath = normalizeVaultToolPath(path, 'write_file')
+
+				await permissionGuard?.({
+					type: 'fs',
+					fs: {
+						kind: 'write',
+						path: `${VAULT_MOUNT_POINT}/${normalizedPath}`,
+					},
+				})
+
+				const result = await writeVaultTextFileByPath(
+					app,
+					normalizedPath,
+					content,
+				)
+				const reversibleOp = result.created
+					? {
+							vaultPath: normalizedPath,
+							operation: 'create' as const,
+							before: { kind: 'file' as const },
+						}
+					: {
+							vaultPath: normalizedPath,
+							operation: 'update' as const,
+							before: {
+								kind: 'file' as const,
+								contentBase64: encodeTextBase64(result.before || ''),
+							},
+						}
+
+				return {
+					result: {
+						path: normalizedPath,
+						written: true,
+						created: result.created,
+					},
+					reversibleOps: [reversibleOp],
 				}
 			},
 		},

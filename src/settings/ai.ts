@@ -17,7 +17,20 @@ import ProvidersManagerModal from '~/components/ProvidersManagerModal'
 import i18n from '~/i18n'
 import { runAsync } from '~/utils/async-helpers'
 import logger from '~/utils/logger'
+import type { NutstoreSettings } from '.'
 import BaseSettings from './settings.base'
+
+type InlineTextSettings = NonNullable<NutstoreSettings['ai']['inlineText']>
+type InlineTextToolMode = NonNullable<InlineTextSettings['toolMode']>
+
+const INLINE_TEXT_DEFAULTS = {
+	enabled: true,
+	temperature: 0.7,
+	compactMaxTokens: 600,
+	toolMaxTokens: 16000,
+	toolMode: 'auto',
+	keepInlineAfterFileWrite: false,
+} satisfies InlineTextSettings
 
 function parseHeadersInput(value: string) {
 	return Object.fromEntries(
@@ -47,7 +60,32 @@ function writeClipboard(text: string) {
 	return navigator.clipboard.writeText(text)
 }
 
+function parseBoundedNumber(
+	value: string,
+	fallback: number,
+	min: number,
+	max: number,
+) {
+	const parsed = Number(value.trim())
+	if (!Number.isFinite(parsed)) {
+		return fallback
+	}
+	return Math.min(max, Math.max(min, parsed))
+}
+
+function formatNumberSetting(value: number | undefined, fallback: number) {
+	return String(Number.isFinite(value) ? value : fallback)
+}
+
 export default class AISettings extends BaseSettings {
+	private getInlineTextSettings(): InlineTextSettings {
+		this.plugin.settings.ai.inlineText = {
+			...INLINE_TEXT_DEFAULTS,
+			...(this.plugin.settings.ai.inlineText || {}),
+		}
+		return this.plugin.settings.ai.inlineText
+	}
+
 	private getLocalMCPUrl() {
 		return (
 			this.plugin.mcpServerService.url ||
@@ -79,10 +117,10 @@ export default class AISettings extends BaseSettings {
 			},
 		}
 		if (this.plugin.settings.ai.mcpServer?.authMode === 'bearer') {
-			(
-				(
-					config.mcpServers as Record<string, Record<string, unknown>>
-				)['guozha-ai-pro'].env as Record<string, string>
+			;(
+				(config.mcpServers as Record<string, Record<string, unknown>>)[
+					'guozha-ai-pro'
+				].env as Record<string, string>
 			).GUOZHA_MCP_TOKEN = this.plugin.settings.ai.mcpServer?.token || ''
 		}
 		return JSON.stringify(config, null, 2)
@@ -93,6 +131,212 @@ export default class AISettings extends BaseSettings {
 			await writeClipboard(value)
 			new Notice(i18n.t('settings.ai.mcp.copied'))
 		})
+	}
+
+	private displayInlineTextSettings() {
+		const config = this.getInlineTextSettings()
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.desc'))
+			.setHeading()
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.enabled.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.enabled.desc'))
+			.addToggle((toggle) =>
+				toggle.setValue(config.enabled ?? true).onChange((value) => {
+					runAsync(async () => {
+						this.getInlineTextSettings().enabled = value
+						await this.persist(false)
+					})
+				}),
+			)
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.provider.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.provider.desc'))
+			.addDropdown((dropdown) => {
+				dropdown.addOption('', i18n.t('settings.ai.inlineText.followChat'))
+				for (const provider of listProviders(
+					this.plugin.settings.ai.providers,
+				)) {
+					dropdown.addOption(
+						provider.id,
+						provider.name || i18n.t('settings.ai.unnamedProvider'),
+					)
+				}
+				dropdown.setValue(config.model?.providerId || '').onChange((value) => {
+					runAsync(async () => {
+						const inlineText = this.getInlineTextSettings()
+						if (!value) {
+							inlineText.model = undefined
+						} else {
+							const provider = getProviderById(
+								this.plugin.settings.ai.providers,
+								value,
+							)
+							const model =
+								getModelById(provider, inlineText.model?.modelId) ||
+								getFirstModel(provider)
+							inlineText.model =
+								provider && model
+									? { providerId: provider.id, modelId: model.id }
+									: undefined
+						}
+						await this.persist(false)
+						this.display()
+					})
+				})
+			})
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.model.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.model.desc'))
+			.addDropdown((dropdown) => {
+				const provider = getProviderById(
+					this.plugin.settings.ai.providers,
+					config.model?.providerId,
+				)
+				dropdown.addOption('', i18n.t('settings.ai.inlineText.followChatModel'))
+				for (const model of listModels(provider)) {
+					dropdown.addOption(
+						model.id,
+						model.name || i18n.t('settings.ai.unnamedModel'),
+					)
+				}
+				dropdown
+					.setValue(config.model?.modelId || '')
+					.setDisabled(!provider)
+					.onChange((value) => {
+						runAsync(async () => {
+							const inlineText = this.getInlineTextSettings()
+							if (provider && value) {
+								inlineText.model = {
+									providerId: provider.id,
+									modelId: value,
+								}
+							} else {
+								inlineText.model = undefined
+							}
+							await this.persist(false)
+							this.display()
+						})
+					})
+			})
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.toolMode.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.toolMode.desc'))
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('auto', i18n.t('settings.ai.inlineText.toolMode.auto'))
+					.addOption('always', i18n.t('settings.ai.inlineText.toolMode.always'))
+					.addOption('never', i18n.t('settings.ai.inlineText.toolMode.never'))
+					.setValue(config.toolMode || 'auto')
+					.onChange((value) => {
+						runAsync(async () => {
+							this.getInlineTextSettings().toolMode =
+								value as InlineTextToolMode
+							await this.persist(false)
+						})
+					}),
+			)
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.temperature.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.temperature.desc'))
+			.addText((text) =>
+				text
+					.setPlaceholder('0.7')
+					.setValue(formatNumberSetting(config.temperature, 0.7))
+					.onChange((value) => {
+						this.getInlineTextSettings().temperature = parseBoundedNumber(
+							value,
+							0.7,
+							0,
+							2,
+						)
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText(i18n.t('settings.ai.inlineText.save'))
+					.onClick(() => {
+						runAsync(async () => {
+							await this.persist()
+							this.display()
+						})
+					}),
+			)
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.compactMaxTokens.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.compactMaxTokens.desc'))
+			.addText((text) =>
+				text
+					.setPlaceholder('600')
+					.setValue(formatNumberSetting(config.compactMaxTokens, 600))
+					.onChange((value) => {
+						this.getInlineTextSettings().compactMaxTokens = parseBoundedNumber(
+							value,
+							600,
+							64,
+							200000,
+						)
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText(i18n.t('settings.ai.inlineText.save'))
+					.onClick(() => {
+						runAsync(async () => {
+							await this.persist()
+							this.display()
+						})
+					}),
+			)
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.toolMaxTokens.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.toolMaxTokens.desc'))
+			.addText((text) =>
+				text
+					.setPlaceholder('16000')
+					.setValue(formatNumberSetting(config.toolMaxTokens, 16000))
+					.onChange((value) => {
+						this.getInlineTextSettings().toolMaxTokens = parseBoundedNumber(
+							value,
+							16000,
+							64,
+							200000,
+						)
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText(i18n.t('settings.ai.inlineText.save'))
+					.onClick(() => {
+						runAsync(async () => {
+							await this.persist()
+							this.display()
+						})
+					}),
+			)
+
+		new Setting(this.containerEl)
+			.setName(i18n.t('settings.ai.inlineText.keepInlineAfterFileWrite.name'))
+			.setDesc(i18n.t('settings.ai.inlineText.keepInlineAfterFileWrite.desc'))
+			.addToggle((toggle) =>
+				toggle
+					.setValue(config.keepInlineAfterFileWrite ?? false)
+					.onChange((value) => {
+						runAsync(async () => {
+							this.getInlineTextSettings().keepInlineAfterFileWrite = value
+							await this.persist(false)
+						})
+					}),
+			)
 	}
 
 	display() {
@@ -112,14 +356,14 @@ export default class AISettings extends BaseSettings {
 			.addButton((button) =>
 				button
 					.setButtonText(i18n.t('settings.ai.providers.manage'))
-						.onClick(() => {
-							new ProvidersManagerModal(this.plugin, () => {
-								runAsync(async () => {
-									await this.persist(false)
-									this.display()
-								})
-							}).open()
-						}),
+					.onClick(() => {
+						new ProvidersManagerModal(this.plugin, () => {
+							runAsync(async () => {
+								await this.persist(false)
+								this.display()
+							})
+						}).open()
+					}),
 			)
 
 		new Setting(this.containerEl)
@@ -137,28 +381,28 @@ export default class AISettings extends BaseSettings {
 				}
 				dropdown
 					.setValue(this.plugin.settings.ai.defaultModel?.providerId || '')
-						.onChange((value) => {
-							runAsync(async () => {
-								if (!value) {
-									this.plugin.settings.ai.defaultModel = undefined
-								} else {
-									const provider = getProviderById(
-										this.plugin.settings.ai.providers,
-										value,
-									)
-									const currentModelId =
-										this.plugin.settings.ai.defaultModel?.modelId
-									const model =
-										getModelById(provider, currentModelId) ||
-										getFirstModel(provider)
-									this.plugin.settings.ai.defaultModel = model
-										? { providerId: value, modelId: model.id }
-										: undefined
-								}
-								await this.persist()
-								this.display()
-							})
+					.onChange((value) => {
+						runAsync(async () => {
+							if (!value) {
+								this.plugin.settings.ai.defaultModel = undefined
+							} else {
+								const provider = getProviderById(
+									this.plugin.settings.ai.providers,
+									value,
+								)
+								const currentModelId =
+									this.plugin.settings.ai.defaultModel?.modelId
+								const model =
+									getModelById(provider, currentModelId) ||
+									getFirstModel(provider)
+								this.plugin.settings.ai.defaultModel = model
+									? { providerId: value, modelId: model.id }
+									: undefined
+							}
+							await this.persist()
+							this.display()
 						})
+					})
 			})
 
 		new Setting(this.containerEl)
@@ -179,22 +423,24 @@ export default class AISettings extends BaseSettings {
 				dropdown
 					.setValue(this.plugin.settings.ai.defaultModel?.modelId || '')
 					.setDisabled(!provider)
-						.onChange((value) => {
-							runAsync(async () => {
-								const providerId =
-									this.plugin.settings.ai.defaultModel?.providerId
-								if (providerId && value) {
-									this.plugin.settings.ai.defaultModel = {
-										providerId,
-										modelId: value,
-									}
-								} else {
-									this.plugin.settings.ai.defaultModel = undefined
+					.onChange((value) => {
+						runAsync(async () => {
+							const providerId =
+								this.plugin.settings.ai.defaultModel?.providerId
+							if (providerId && value) {
+								this.plugin.settings.ai.defaultModel = {
+									providerId,
+									modelId: value,
 								}
-								await this.persist()
-							})
+							} else {
+								this.plugin.settings.ai.defaultModel = undefined
+							}
+							await this.persist()
 						})
+					})
 			})
+
+		this.displayInlineTextSettings()
 
 		new Setting(this.containerEl)
 			.setName(i18n.t('settings.ai.yolo.name'))
@@ -275,17 +521,15 @@ export default class AISettings extends BaseSettings {
 					}),
 				)
 				.addButton((button) =>
-					button
-						.setButtonText(i18n.t('settings.filters.save'))
-						.onClick(() => {
-							runAsync(async () => {
-								this.plugin.settings.ai.mcpServers = (
-									this.plugin.settings.ai.mcpServers || []
-								).map((item) => createMCPServerConfig(item))
-								await this.persist()
-								this.display()
-							})
-						}),
+					button.setButtonText(i18n.t('settings.filters.save')).onClick(() => {
+						runAsync(async () => {
+							this.plugin.settings.ai.mcpServers = (
+								this.plugin.settings.ai.mcpServers || []
+							).map((item) => createMCPServerConfig(item))
+							await this.persist()
+							this.display()
+						})
+					}),
 				)
 				.addButton((button) =>
 					button
@@ -329,7 +573,9 @@ export default class AISettings extends BaseSettings {
 			.addText((text) =>
 				text
 					.setPlaceholder('41733')
-					.setValue(String(normalizeMCPPort(this.plugin.settings.ai.mcpServer?.port)))
+					.setValue(
+						String(normalizeMCPPort(this.plugin.settings.ai.mcpServer?.port)),
+					)
 					.onChange((value) => {
 						this.plugin.settings.ai.mcpServer ??= {
 							enabled: false,
@@ -480,7 +726,6 @@ export default class AISettings extends BaseSettings {
 					.setTooltip(i18n.t('settings.ai.mcp.copy'))
 					.onClick(() => this.copySettingValue(this.getBridgePath())),
 			)
-
 	}
 
 	private async persist(showNotice: boolean = true) {
@@ -491,6 +736,10 @@ export default class AISettings extends BaseSettings {
 			this.plugin.settings.ai.defaultModel = sanitizeDefaultSelections(
 				this.plugin.settings.ai.providers,
 				this.plugin.settings.ai.defaultModel,
+			)
+			this.getInlineTextSettings().model = sanitizeDefaultSelections(
+				this.plugin.settings.ai.providers,
+				this.plugin.settings.ai.inlineText?.model,
 			)
 			await this.plugin.saveSettings()
 			if (showNotice) {

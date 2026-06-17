@@ -4,6 +4,7 @@ import type {
 	ChatPendingMessage,
 	ChatSessionHistoryItem,
 } from '~/chatbox/types'
+import type { NutstoreSettings } from '~/settings'
 import ChatService, { normalizeInlineInferenceParams } from './chat.service'
 
 const storageState = vi.hoisted(() => {
@@ -88,6 +89,68 @@ describe('inline inference params', () => {
 	})
 })
 
+describe('inline text AI settings', () => {
+	beforeEach(() => {
+		storageState.reset()
+	})
+
+	it('builds default inline text options without overriding the base tool decision', () => {
+		const service = new ChatService(createPlugin() as never)
+
+		expect(service.getInlineTextAIOptions(false)).toEqual({
+			enabled: true,
+			useTools: false,
+			modelSelection: undefined,
+			keepInlineAfterFileWrite: false,
+			inferenceParams: { maxTokens: 600 },
+		})
+		expect(service.getInlineTextAIOptions(true)).toEqual({
+			enabled: true,
+			useTools: true,
+			modelSelection: undefined,
+			keepInlineAfterFileWrite: false,
+			inferenceParams: { maxTokens: 16000 },
+		})
+	})
+
+	it('applies separate model, temperature, token budgets, and tool mode', () => {
+		const plugin = createPluginWithTwoProviders()
+		plugin.settings.ai.inlineText = {
+			enabled: true,
+			model: { providerId: 'provider-2', modelId: 'model-2' },
+			temperature: 1.3,
+			compactMaxTokens: 900,
+			toolMaxTokens: 24000,
+			toolMode: 'always',
+			keepInlineAfterFileWrite: true,
+		}
+		const service = new ChatService(plugin as never)
+
+		expect(service.getInlineTextAIOptions(false)).toEqual({
+			enabled: true,
+			useTools: true,
+			modelSelection: { providerId: 'provider-2', modelId: 'model-2' },
+			keepInlineAfterFileWrite: true,
+			inferenceParams: { temperature: 1.3, maxTokens: 24000 },
+		})
+	})
+
+	it('can force inline tools off even when the prompt looks like a file operation', () => {
+		const plugin = createPlugin()
+		plugin.settings.ai.inlineText = {
+			toolMode: 'never',
+			compactMaxTokens: 1200,
+		}
+		const service = new ChatService(plugin as never)
+
+		expect(service.getInlineTextAIOptions(true)).toMatchObject({
+			enabled: true,
+			useTools: false,
+			inferenceParams: { maxTokens: 1200 },
+		})
+	})
+})
+
 function createPlugin() {
 	return {
 		app: {},
@@ -109,6 +172,7 @@ function createPlugin() {
 					},
 				},
 				defaultModel: { providerId: 'provider-1', modelId: 'model-1' },
+				inlineText: undefined as NutstoreSettings['ai']['inlineText'],
 			},
 		},
 	}
@@ -146,6 +210,7 @@ function createPluginWithTwoProviders() {
 					},
 				},
 				defaultModel: { providerId: 'provider-1', modelId: 'model-1' },
+				inlineText: undefined as NutstoreSettings['ai']['inlineText'],
 			},
 		},
 	}
@@ -153,11 +218,15 @@ function createPluginWithTwoProviders() {
 
 function createPluginWithVault(
 	initialFiles: Record<string, string> = {},
-	options: { createBinaryReturnsFile?: boolean } = {},
+	options: {
+		createBinaryReturnsFile?: boolean
+		staleIndexPaths?: string[]
+	} = {},
 ) {
 	const files = new Map(Object.entries(initialFiles))
 	const folders = new Set<string>([''])
 	const createBinaryReturnsFile = options.createBinaryReturnsFile ?? true
+	const staleIndexPaths = new Set(options.staleIndexPaths ?? [])
 	const normalize = (path: string) => path.replace(/^\/+|\/+$/g, '')
 	const dirname = (path: string) =>
 		!path || !path.includes('/') ? '' : path.slice(0, path.lastIndexOf('/'))
@@ -183,6 +252,9 @@ function createPluginWithVault(
 
 	const getAbstractFileByPath = (path: string): any => {
 		const normalized = normalize(path)
+		if (staleIndexPaths.has(normalized)) {
+			return null
+		}
 		if (!normalized) {
 			return { path: '', children: [] }
 		}
@@ -204,6 +276,29 @@ function createPluginWithVault(
 					adapter: {
 						getResourcePath(path: string) {
 							return `app://local/${path}`
+						},
+						async stat(path: string) {
+							const normalized = normalize(path)
+							if (files.has(normalized)) {
+								return {
+									type: 'file',
+									ctime: 0,
+									mtime: 0,
+									size: files.get(normalized)?.length ?? 0,
+								}
+							}
+							if (folders.has(normalized)) {
+								return {
+									type: 'folder',
+									ctime: 0,
+									mtime: 0,
+									size: 0,
+								}
+							}
+							return null
+						},
+						async read(path: string) {
+							return files.get(normalize(path)) ?? ''
 						},
 						async exists(path: string) {
 							const normalized = normalize(path)
@@ -235,6 +330,12 @@ function createPluginWithVault(
 						return createBinaryReturnsFile
 							? getAbstractFileByPath(normalized)
 							: undefined
+					},
+					async cachedRead(file: any) {
+						return files.get(normalize(file.path)) ?? ''
+					},
+					async modify(file: any, content: string) {
+						files.set(normalize(file.path), content)
 					},
 					getResourcePath(file: { path: string }) {
 						return `app://vault/${file.path}`
@@ -344,6 +445,94 @@ function getActiveSession(service: ChatService) {
 function getLoadedSession(service: ChatService, sessionId: string) {
 	return (service as any).loadedSessions.get(sessionId)
 }
+
+describe('ChatService inline tool workflows', () => {
+	beforeEach(() => {
+		generateAssistantTurn.mockReset()
+		generateImageTurn.mockReset()
+		assertProviderUsable.mockReset()
+		storageState.reset()
+	})
+
+	it('continues tool rounds so inline editing can read and then write files', async () => {
+		const { plugin, files } = createPluginWithVault(
+			{
+				'notes/current.md': '原文',
+			},
+			{ staleIndexPaths: ['notes/current.md'] },
+		)
+		;(plugin.settings.ai as any).yolo = true
+		const service = new ChatService(plugin as never)
+		generateAssistantTurn
+			.mockResolvedValueOnce({
+				message: {
+					role: 'assistant',
+					content: [],
+					tool_calls: [
+						{
+							id: 'call-read',
+							type: 'function',
+							function: {
+								name: 'read_file',
+								arguments: JSON.stringify({
+									path: 'notes/current.md',
+								}),
+							},
+						},
+					],
+				},
+				meta: {},
+			})
+			.mockResolvedValueOnce({
+				message: {
+					role: 'assistant',
+					content: [],
+					tool_calls: [
+						{
+							id: 'call-write',
+							type: 'function',
+							function: {
+								name: 'write_file',
+								arguments: JSON.stringify({
+									path: 'notes/current.md',
+									content: '改后正文',
+								}),
+							},
+						},
+					],
+				},
+				meta: {},
+			})
+			.mockResolvedValueOnce({
+				message: {
+					role: 'assistant',
+					content: [{ type: 'text', text: '已更新当前笔记。' }],
+				},
+				meta: {},
+			})
+
+		const result = await service.runInlineAI({
+			messages: [{ role: 'user', text: '润色当前笔记', createdAt: 1 }],
+			context: {
+				filePath: 'notes/current.md',
+				before: '',
+				after: '',
+				selection: '',
+			},
+			allowLongForm: true,
+			disableTools: false,
+			keepInlineAfterFileWrite: true,
+		})
+
+		expect(result).toEqual({
+			text: '已更新当前笔记。',
+			toolUsed: true,
+			fileWritten: true,
+		})
+		expect(files.get('notes/current.md')).toBe('改后正文')
+		expect(generateAssistantTurn).toHaveBeenCalledTimes(3)
+	})
+})
 
 describe('ChatService fragment workflows', () => {
 	beforeEach(() => {

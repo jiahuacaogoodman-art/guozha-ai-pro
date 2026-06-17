@@ -47,6 +47,15 @@ export interface NutstoreSettings {
 		providers: AIProviderConfigs
 		defaultModel?: { providerId: string; modelId: string }
 		yolo?: boolean
+		inlineText?: {
+			enabled?: boolean
+			model?: { providerId: string; modelId: string }
+			temperature?: number
+			compactMaxTokens?: number
+			toolMaxTokens?: number
+			toolMode?: 'auto' | 'always' | 'never'
+			keepInlineAfterFileWrite?: boolean
+		}
 		mcpServers?: MCPServerConfig[]
 		mcpServer?: {
 			enabled: boolean

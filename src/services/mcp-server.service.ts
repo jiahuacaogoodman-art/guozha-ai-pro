@@ -26,11 +26,7 @@ interface NodeResponse {
 }
 
 interface NodeServer {
-	listen: (
-		port: number,
-		host: string,
-		callback?: () => void,
-	) => NodeServer
+	listen: (port: number, host: string, callback?: () => void) => NodeServer
 	close: (callback?: (error?: Error) => void) => void
 	on: (event: string, listener: (...args: unknown[]) => void) => NodeServer
 }
@@ -98,6 +94,22 @@ const LOCAL_TOOL_SCHEMAS: Record<string, Record<string, unknown>> = {
 		required: ['path', 'oldText', 'newText'],
 		additionalProperties: false,
 	},
+	write_file: {
+		type: 'object',
+		properties: {
+			path: {
+				type: 'string',
+				description:
+					'Vault-relative path or virtual /vault/... path to create or replace.',
+			},
+			content: {
+				type: 'string',
+				description: 'Full text content to write into the file.',
+			},
+		},
+		required: ['path', 'content'],
+		additionalProperties: false,
+	},
 	bash: {
 		type: 'object',
 		properties: {
@@ -131,6 +143,16 @@ const LOCAL_TOOL_OUTPUT_SCHEMAS: Record<string, Record<string, unknown>> = {
 		required: ['path', 'replaced'],
 		additionalProperties: true,
 	},
+	write_file: {
+		type: 'object',
+		properties: {
+			path: { type: 'string' },
+			written: { type: 'boolean' },
+			created: { type: 'boolean' },
+		},
+		required: ['path', 'written', 'created'],
+		additionalProperties: true,
+	},
 	bash: {
 		type: 'object',
 		properties: {
@@ -150,6 +172,11 @@ const LOCAL_TOOL_ANNOTATIONS: Record<string, Record<string, unknown>> = {
 		destructiveHint: true,
 		openWorldHint: false,
 	},
+	write_file: {
+		readOnlyHint: false,
+		destructiveHint: true,
+		openWorldHint: false,
+	},
 	bash: {
 		readOnlyHint: false,
 		destructiveHint: true,
@@ -165,6 +192,10 @@ const LOCAL_TOOL_META: Record<string, Record<string, unknown>> = {
 	edit_file: {
 		'openai/toolInvocation/invoking': 'Editing vault file',
 		'openai/toolInvocation/invoked': 'Vault file edited',
+	},
+	write_file: {
+		'openai/toolInvocation/invoking': 'Writing vault file',
+		'openai/toolInvocation/invoked': 'Vault file written',
 	},
 	bash: {
 		'openai/toolInvocation/invoking': 'Running vault command',
@@ -186,7 +217,8 @@ const LOCAL_PROMPTS = [
 	},
 	{
 		name: 'search_vault',
-		description: 'Search the current Obsidian vault and explain the relevant notes.',
+		description:
+			'Search the current Obsidian vault and explain the relevant notes.',
 		arguments: [
 			{
 				name: 'query',
@@ -297,11 +329,7 @@ function decodeVaultResourceUri(uri: string) {
 		throw new Error(`Unsupported resource URI: ${uri}`)
 	}
 	return normalizePath(
-		uri
-			.slice('vault:///'.length)
-			.split('/')
-			.map(decodeURIComponent)
-			.join('/'),
+		uri.slice('vault:///'.length).split('/').map(decodeURIComponent).join('/'),
 	)
 }
 
@@ -331,7 +359,9 @@ function createSessionId() {
 			bytes[index] = Math.floor(Math.random() * 256)
 		}
 	}
-	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+		'',
+	)
 }
 
 function getHeader(request: NodeRequest, name: string) {
@@ -368,7 +398,10 @@ function toSSEMessage(payload: unknown) {
 	return `event: message\ndata: ${JSON.stringify(payload)}\n\n`
 }
 
-function toJSONRPCNotification(method: string, params?: Record<string, unknown>) {
+function toJSONRPCNotification(
+	method: string,
+	params?: Record<string, unknown>,
+) {
 	return {
 		jsonrpc: '2.0',
 		method,
@@ -675,7 +708,9 @@ export default class MCPServerService {
 		if (!this.isAuthorized(request)) {
 			response.writeHead(401, this.unauthorizedHeaders())
 			response.end(
-				JSON.stringify(toJSONRPCError(null, -32001, 'Unauthorized MCP request')),
+				JSON.stringify(
+					toJSONRPCError(null, -32001, 'Unauthorized MCP request'),
+				),
 			)
 			return
 		}
@@ -684,7 +719,10 @@ export default class MCPServerService {
 		try {
 			payload = JSON.parse(await readBody(request)) as JSONRPCRequest
 		} catch {
-			response.writeHead(400, this.headers({ 'content-type': 'application/json' }))
+			response.writeHead(
+				400,
+				this.headers({ 'content-type': 'application/json' }),
+			)
 			response.end(JSON.stringify(toJSONRPCError(null, -32700, 'Parse error')))
 			return
 		}
@@ -722,7 +760,10 @@ export default class MCPServerService {
 		}
 		response.writeHead(
 			200,
-			this.headers({ 'content-type': 'application/json; charset=utf-8' }, session.id),
+			this.headers(
+				{ 'content-type': 'application/json; charset=utf-8' },
+				session.id,
+			),
 		)
 		response.end(JSON.stringify(body))
 	}
@@ -733,7 +774,9 @@ export default class MCPServerService {
 		response: NodeResponse,
 	) {
 		const sessionId = getHeader(request, 'mcp-session-id')
-		const initializeRequest = requests.find((item) => item.method === 'initialize')
+		const initializeRequest = requests.find(
+			(item) => item.method === 'initialize',
+		)
 		if (initializeRequest) {
 			const params = initializeRequest.params || {}
 			const requestedProtocol =
@@ -810,7 +853,9 @@ export default class MCPServerService {
 		if (!this.isAuthorized(request)) {
 			response.writeHead(401, this.unauthorizedHeaders())
 			response.end(
-				JSON.stringify(toJSONRPCError(null, -32001, 'Unauthorized MCP request')),
+				JSON.stringify(
+					toJSONRPCError(null, -32001, 'Unauthorized MCP request'),
+				),
 			)
 			return
 		}
@@ -840,7 +885,9 @@ export default class MCPServerService {
 		if (!this.isAuthorized(request)) {
 			response.writeHead(401, this.unauthorizedHeaders())
 			response.end(
-				JSON.stringify(toJSONRPCError(null, -32001, 'Unauthorized MCP request')),
+				JSON.stringify(
+					toJSONRPCError(null, -32001, 'Unauthorized MCP request'),
+				),
 			)
 			return
 		}
@@ -1042,7 +1089,8 @@ export default class MCPServerService {
 		)
 		response.end(
 			JSON.stringify({
-				access_token: this.plugin.settings.ai.mcpServer?.token || createSessionId(),
+				access_token:
+					this.plugin.settings.ai.mcpServer?.token || createSessionId(),
 				token_type: 'Bearer',
 				scope: 'guozha:mcp',
 				expires_in: 31536000,
@@ -1155,16 +1203,18 @@ export default class MCPServerService {
 				case 'ping':
 					return toJSONRPCResult(request.id, {})
 				case 'notifications/initialized':
-					return request.id === undefined ? undefined : toJSONRPCResult(request.id, {})
+					return request.id === undefined
+						? undefined
+						: toJSONRPCResult(request.id, {})
 				case 'tools/list':
 					return toJSONRPCResult(request.id, this.listMCPTools(request.params))
 				case 'tools/call':
-					return toJSONRPCResult(request.id, await this.callTool(request.params))
-				case 'resources/list':
 					return toJSONRPCResult(
 						request.id,
-						this.listResources(request.params),
+						await this.callTool(request.params),
 					)
+				case 'resources/list':
+					return toJSONRPCResult(request.id, this.listResources(request.params))
 				case 'resources/read':
 					return toJSONRPCResult(
 						request.id,
@@ -1241,11 +1291,7 @@ export default class MCPServerService {
 			},
 			_meta: LOCAL_TOOL_META[tool.name] || {},
 		}))
-		const { page, nextCursor } = paginate(
-			tools,
-			params?.cursor,
-			TOOL_PAGE_SIZE,
-		)
+		const { page, nextCursor } = paginate(tools, params?.cursor, TOOL_PAGE_SIZE)
 		return {
 			tools: page,
 			...(nextCursor ? { nextCursor } : {}),
@@ -1353,8 +1399,7 @@ export default class MCPServerService {
 			params?.cursor,
 			RESOURCE_PAGE_SIZE,
 		)
-		const resources = page
-			.map((file) => this.toVaultResource(file))
+		const resources = page.map((file) => this.toVaultResource(file))
 		return {
 			resources,
 			...(nextCursor ? { nextCursor } : {}),
@@ -1374,7 +1419,10 @@ export default class MCPServerService {
 		if (!isTextResource(target)) {
 			throw new Error(`Vault resource is not a supported text file: ${path}`)
 		}
-		await createPermissionGuard(this.plugin.app, () => this.plugin.settings)({
+		await createPermissionGuard(
+			this.plugin.app,
+			() => this.plugin.settings,
+		)({
 			type: 'fs',
 			fs: {
 				kind: 'read',
@@ -1417,7 +1465,10 @@ export default class MCPServerService {
 		return {}
 	}
 
-	private broadcastNotification(method: string, params?: Record<string, unknown>) {
+	private broadcastNotification(
+		method: string,
+		params?: Record<string, unknown>,
+	) {
 		const notification = toJSONRPCNotification(method, params)
 		for (const client of Array.from(this.sseClients)) {
 			client.response.write?.(toSSEMessage(notification))
@@ -1453,10 +1504,7 @@ export default class MCPServerService {
 		}
 		const parsedArgs =
 			typeof parser.parse === 'function' ? parser.parse(args) : args
-		const result = await tool.execute(
-			parsedArgs,
-			this.createExecutionContext(),
-		)
+		const result = await tool.execute(parsedArgs, this.createExecutionContext())
 		return {
 			content: [
 				{

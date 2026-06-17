@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { TFile, TFolder, type App } from 'obsidian'
 import { createAITools } from './tools'
 import { VAULT_MOUNT_POINT } from './bash/runtime'
@@ -10,7 +10,12 @@ function makeEntries(
 	return paths
 }
 
-function createToolApp(options: { staleIndexPaths?: string[] } = {}) {
+function createToolApp(
+	options: {
+		staleIndexPaths?: string[]
+		openMarkdownFile?: { path: string; content: string }
+	} = {},
+) {
 	const files = new Map<string, string>([
 		['notes/existing.md', 'old'],
 		['notes/stale.md', 'stale old'],
@@ -95,8 +100,37 @@ function createToolApp(options: { staleIndexPaths?: string[] } = {}) {
 		}
 		return null
 	}
+	const openEditor = options.openMarkdownFile
+		? {
+				content: options.openMarkdownFile.content,
+				setValue: vi.fn(),
+			}
+		: undefined
+	if (openEditor) {
+		openEditor.setValue.mockImplementation((content: string) => {
+			openEditor.content = content
+		})
+	}
 
 	return {
+		workspace: {
+			getLeavesOfType(type: string) {
+				if (type !== 'markdown' || !options.openMarkdownFile || !openEditor) {
+					return []
+				}
+				return [
+					{
+						view: {
+							file: { path: options.openMarkdownFile.path },
+							editor: {
+								getValue: () => openEditor.content,
+								setValue: openEditor.setValue,
+							},
+						},
+					},
+				]
+			},
+		},
 		vault: {
 			getRoot() {
 				return buildFolder('', null)
@@ -137,6 +171,9 @@ function createToolApp(options: { staleIndexPaths?: string[] } = {}) {
 					const normalized = normalize(path)
 					ensureFolder(dirname(normalized))
 					files.set(normalized, content)
+				},
+				async mkdir(path: string) {
+					ensureFolder(path)
 				},
 			},
 			async createBinary(path: string, data: ArrayBuffer) {
@@ -182,7 +219,8 @@ function createToolApp(options: { staleIndexPaths?: string[] } = {}) {
 				}
 			},
 		},
-	} as unknown as App
+		__openEditor: openEditor,
+	} as unknown as App & { __openEditor?: typeof openEditor }
 }
 
 describe('filterVaultEntries', () => {
@@ -355,6 +393,127 @@ describe('filterVaultEntries', () => {
 					},
 				},
 			],
+		})
+	})
+
+	it('writes entire vault files with reversible ops', async () => {
+		const tools = createAITools(createToolApp())
+		const writeTool = tools.find((tool) => tool.name === 'write_file')
+		const readTool = tools.find((tool) => tool.name === 'read_file')
+
+		const result = await writeTool!.execute(
+			{
+				path: 'notes/existing.md',
+				content: 'rewritten note',
+			},
+			{} as never,
+		)
+
+		expect(result).toEqual({
+			result: {
+				path: 'notes/existing.md',
+				written: true,
+				created: false,
+			},
+			reversibleOps: [
+				{
+					vaultPath: 'notes/existing.md',
+					operation: 'update',
+					before: {
+						kind: 'file',
+						contentBase64: Buffer.from('old').toString('base64'),
+					},
+				},
+			],
+		})
+		await expect(
+			readTool!.execute({ path: 'notes/existing.md' }, {} as never),
+		).resolves.toMatchObject({
+			result: {
+				content: 'rewritten note',
+			},
+		})
+	})
+
+	it('writes open markdown files through the editor instead of external disk writes', async () => {
+		const app = createToolApp({
+			openMarkdownFile: {
+				path: 'notes/existing.md',
+				content: 'editor old',
+			},
+		})
+		const tools = createAITools(app)
+		const writeTool = tools.find((tool) => tool.name === 'write_file')
+		const readTool = tools.find((tool) => tool.name === 'read_file')
+
+		await expect(
+			writeTool!.execute(
+				{
+					path: 'notes/existing.md',
+					content: 'editor new',
+				},
+				{} as never,
+			),
+		).resolves.toEqual({
+			result: {
+				path: 'notes/existing.md',
+				written: true,
+				created: false,
+			},
+			reversibleOps: [
+				{
+					vaultPath: 'notes/existing.md',
+					operation: 'update',
+					before: {
+						kind: 'file',
+						contentBase64: Buffer.from('editor old').toString('base64'),
+					},
+				},
+			],
+		})
+		expect(app.__openEditor?.setValue).toHaveBeenCalledWith('editor new')
+		await expect(
+			readTool!.execute({ path: 'notes/existing.md' }, {} as never),
+		).resolves.toMatchObject({
+			result: {
+				content: 'old',
+			},
+		})
+	})
+
+	it('creates new vault files with write_file', async () => {
+		const tools = createAITools(createToolApp())
+		const writeTool = tools.find((tool) => tool.name === 'write_file')
+		const readTool = tools.find((tool) => tool.name === 'read_file')
+
+		await expect(
+			writeTool!.execute(
+				{
+					path: '/vault/notes/generated/new.md',
+					content: 'created note',
+				},
+				{} as never,
+			),
+		).resolves.toEqual({
+			result: {
+				path: 'notes/generated/new.md',
+				written: true,
+				created: true,
+			},
+			reversibleOps: [
+				{
+					vaultPath: 'notes/generated/new.md',
+					operation: 'create',
+					before: { kind: 'file' },
+				},
+			],
+		})
+		await expect(
+			readTool!.execute({ path: 'notes/generated/new.md' }, {} as never),
+		).resolves.toMatchObject({
+			result: {
+				content: 'created note',
+			},
 		})
 	})
 

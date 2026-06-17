@@ -171,6 +171,14 @@ export default class NutstorePlugin extends Plugin {
 				providers: {},
 				defaultModel: undefined,
 				yolo: false,
+				inlineText: {
+					enabled: true,
+					temperature: 0.7,
+					compactMaxTokens: 600,
+					toolMaxTokens: 16000,
+					toolMode: 'auto',
+					keepInlineAfterFileWrite: false,
+				},
 				mcpServers: [],
 				mcpServer: {
 					enabled: false,
@@ -186,6 +194,10 @@ export default class NutstorePlugin extends Plugin {
 		const loadedSettings = (await this.loadData()) as Partial<NutstoreSettings>
 		this.settings = { ...DEFAULT_SETTINGS, ...loadedSettings }
 		this.settings.ai ??= { providers: {}, defaultModel: undefined, yolo: false }
+		this.settings.ai.inlineText = {
+			...DEFAULT_SETTINGS.ai.inlineText,
+			...(this.settings.ai.inlineText || {}),
+		}
 		this.settings.ai.mcpServers = (this.settings.ai.mcpServers || []).map(
 			(server) => createMCPServerConfig(server),
 		)
@@ -220,6 +232,12 @@ export default class NutstorePlugin extends Plugin {
 			? sanitizeDefaultSelections(
 					this.settings.ai.providers,
 					this.settings.ai.defaultModel,
+				)
+			: undefined
+		this.settings.ai.inlineText.model = providersValid
+			? sanitizeDefaultSelections(
+					this.settings.ai.providers,
+					this.settings.ai.inlineText.model,
 				)
 			: undefined
 	}

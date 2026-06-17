@@ -3,6 +3,7 @@ import {
 	createContinuationText,
 	decodePayload,
 	encodePayload,
+	findInlineHistoryRangeForDelete,
 	getInlinePromptRanges,
 	normalizeInlineReply,
 	parseInlineMessages,
@@ -25,6 +26,10 @@ describe('inline ai helpers', () => {
 
 	it('uses tools for file and action requests but not plain explanations', () => {
 		expect(shouldUseToolsForInline('帮我修复当前笔记里的错别字')).toBe(true)
+		expect(shouldUseToolsForInline('我让你给我在文件里做表')).toBe(true)
+		expect(shouldUseToolsForInline('给我在当前笔记里插入一个对比表格')).toBe(
+			true,
+		)
 		expect(shouldUseToolsForInline('测试这个插件并告诉我结果')).toBe(true)
 		expect(shouldUseToolsForInline('解释一下近婚系数是什么')).toBe(false)
 		expect(shouldUseToolsForInline('给我讲讲为什么会这样')).toBe(false)
@@ -95,6 +100,36 @@ describe('inline ai helpers', () => {
 			'正文 [果札对话历史：用户：改标题；果札：已把标题改短。] 后文',
 		)
 		expect(sanitized).not.toContain(encoded)
+	})
+
+	it('finds collapsed history ranges for direct keyboard deletion', () => {
+		const payload = {
+			version: 1 as const,
+			id: 'inline-test',
+			createdAt: 1,
+			updatedAt: 2,
+			text: '果札：你好。    你：删除测试',
+			messages: [{ role: 'user' as const, text: '删除测试', createdAt: 1 }],
+		}
+		const comment = `<!-- guozha-inline-chat:${encodePayload(payload)} -->`
+		const text = `前${comment}后`
+		const from = 1
+		const to = from + comment.length
+
+		expect(findInlineHistoryRangeForDelete(text, to, 'Backspace')).toEqual({
+			from,
+			to,
+		})
+		expect(findInlineHistoryRangeForDelete(text, from, 'Delete')).toEqual({
+			from,
+			to,
+		})
+		expect(
+			findInlineHistoryRangeForDelete(text, from - 1, 'Backspace'),
+		).toBeUndefined()
+		expect(
+			findInlineHistoryRangeForDelete(text, to + 1, 'Delete'),
+		).toBeUndefined()
 	})
 
 	it('summarizes real inline conversation rows without touching plain prose', () => {

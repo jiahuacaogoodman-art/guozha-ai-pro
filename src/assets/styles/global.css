@@ -316,6 +316,16 @@
 	color: var(--text-on-accent);
 }
 
+.guozha-inline-ai-history-popover-action-danger {
+	color: var(--text-error);
+}
+
+.guozha-inline-ai-history-popover-action-danger:hover {
+	border-color: var(--text-error);
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+}
+
 .guozha-inline-ai-stream-cursor {
 	display: inline-block;
 	margin-left: 1px;
