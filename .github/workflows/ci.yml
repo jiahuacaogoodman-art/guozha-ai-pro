@@ -33,7 +33,7 @@ jobs:
 
       - name: Check build artifacts
         run: |
-          if [ ! -f main.js ] || [ ! -f manifest.json ] || [ ! -f styles.css ]; then
+          if [ ! -f main.js ] || [ ! -f manifest.json ] || [ ! -f styles.css ] || [ ! -f mcp-stdio-bridge.cjs ]; then
             echo "Error: Required build artifacts not found"
             exit 1
           fi

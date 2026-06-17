@@ -13,6 +13,7 @@ import FilterSettings from './filter'
 import LogSettings from './log'
 import AISettings from './ai'
 import { AIProviderConfigs } from '~/ai/types'
+import type { MCPServerConfig } from '~/ai/mcp'
 
 export enum SyncMode {
 	STRICT = 'strict',
@@ -46,6 +47,14 @@ export interface NutstoreSettings {
 		providers: AIProviderConfigs
 		defaultModel?: { providerId: string; modelId: string }
 		yolo?: boolean
+		mcpServers?: MCPServerConfig[]
+		mcpServer?: {
+			enabled: boolean
+			port: number
+			authMode?: 'open' | 'bearer'
+			nodeCommand?: string
+			token?: string
+		}
 	}
 	configDirSyncMode?: 'none' | 'bookmarks' | 'all'
 }

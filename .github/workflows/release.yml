@@ -42,6 +42,7 @@ jobs:
             main.js
             manifest.json
             styles.css
+            mcp-stdio-bridge.cjs
 
       - name: Publish release assets
         env:
@@ -49,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF#refs/tags/}"
-          assets=(main.js manifest.json styles.css)
+          assets=(main.js manifest.json styles.css mcp-stdio-bridge.cjs)
 
           release_notes=$(
             cat <<EOF

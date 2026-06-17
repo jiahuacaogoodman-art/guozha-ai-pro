@@ -71,6 +71,7 @@
 .chatbox-composer {
 	position: relative;
 	min-width: 0;
+	width: 100%;
 }
 
 .chatbox-command-menu {
@@ -131,16 +132,21 @@
 	position: absolute;
 	right: 0.5rem;
 	bottom: 0.25rem;
+	z-index: 2;
 	display: inline-flex;
 	width: 2rem;
 	height: 2rem;
 	min-width: 2rem;
 	align-items: center;
 	justify-content: center;
+	border: 0;
 	border-radius: 999px;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
 	font-size: 1rem;
 	line-height: 1;
 	padding: 0;
+	box-shadow: var(--shadow-s);
 }
 
 .chatbox-send-button:disabled {
@@ -149,8 +155,9 @@
 
 .chatbox-send-icon {
 	display: block;
-	width: 1rem;
-	height: 1rem;
+	width: 0.9375rem;
+	height: 0.9375rem;
+	transform: translateY(1px);
 }
 
 .chatbox-resizer {
@@ -195,20 +202,22 @@ body.chatbox-resize-active * {
 		display: flex;
 		flex: 1 1 auto;
 		min-height: 0;
+		width: 100%;
 	}
 }
 
 @media (max-width: 768px) {
 	.chatbox-input-pane {
-		padding: 0.375rem 0.5rem;
+		padding: 0.25rem 0.5rem 0.125rem;
 	}
 
 	.chatbox-input {
 		height: auto;
-		min-height: 2.25rem;
+		min-height: 2.125rem;
 		max-height: 7.5rem;
-		padding: 0.375rem 2.375rem 0.375rem 0.625rem;
-		line-height: 1.4;
+		padding: 0.3125rem 2.25rem 0.3125rem 0.625rem;
+		font-size: 16px;
+		line-height: 1.35;
 	}
 
 	.chatbox-attachments {
@@ -224,7 +233,7 @@ body.chatbox-resize-active * {
 
 	.chatbox-send-button {
 		right: 0.25rem;
-		bottom: 0.25rem;
+		bottom: 0.1875rem;
 		height: 1.75rem;
 		min-height: 1.75rem;
 		min-width: 1.75rem;
